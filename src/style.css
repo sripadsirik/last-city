@@ -1020,7 +1020,7 @@ svg {
 .toast {
   position: absolute;
   z-index: 50;
-  top: 86px;
+  top: 148px;
   left: 50%;
   max-width: min(520px, calc(100vw - 32px));
   padding: 10px 14px;
