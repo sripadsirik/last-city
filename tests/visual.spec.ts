@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { PNG } from "pngjs";
 
-test("renders a nonblank city and completes the human approval loop", async ({ page }, testInfo) => {
+test("renders a nonblank city with a WebMCP-first human console", async ({ page }, testInfo) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
@@ -51,18 +51,12 @@ test("renders a nonblank city and completes the human approval loop", async ({ p
   await page.getByRole("button", { name: "Enter joint command" }).click();
   await expect(page.locator("#briefing")).toHaveClass(/dismissed/);
 
-  await page.locator('[data-command="power"]').click();
-  await expect(page.locator("#objective-hospital")).toHaveClass(/complete/);
-
-  await page.locator('[data-command="evacuate"]').click();
-  await expect(page.locator("#approval-panel")).toBeVisible();
-  await expect(page.locator("#approval-consequence")).toContainText("residents");
-  await page.getByRole("button", { name: "Authorize" }).click();
-  await expect(page.locator("#approval-panel")).toBeHidden();
-  await expect(page.locator("#objective-southbank")).toHaveClass(/complete/);
-
-  await page.locator('[data-command="relay"]').click();
-  await expect(page.locator("#objective-comms")).toHaveClass(/complete/);
+  await page.locator('[data-command="status"]').click();
+  await expect(page.locator("#toast")).toContainText("active alerts");
+  await page.locator('[data-command="scan"]').click();
+  await expect(page.locator("#activity-list")).toContainText("Midtown digital twin synchronized");
+  await expect(page.locator("#capability-list")).toContainText("deploy_mobile_generator");
+  await expect(page.locator(".console-note")).toContainText("WebMCP tools");
 
   await page.screenshot({ path: testInfo.outputPath("active.png"), fullPage: true });
   expect(pageErrors).toEqual([]);

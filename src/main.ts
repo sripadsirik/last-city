@@ -33,7 +33,9 @@ import {
   CrisisSimulation,
   districtIds,
   type ActionResult,
+  type Difficulty,
   type DistrictId,
+  type EvacuationRoute,
   type MissionState,
   type UnitType,
 } from "./simulation";
@@ -63,7 +65,7 @@ declare global {
 }
 
 const DIRECTIVE =
-  "Keep the hospital online, evacuate Southbank, and protect the communications tower. Explain any consequential decision before acting.";
+  "Act as my incident agent. Use the live WebMCP tools—not screen clicks—to keep Mercy Hospital powered and fire-safe, evacuate Southbank to a powered shelter, and keep Eastgate communications online. Preserve scarce units, re-plan when conditions change, and explain every irreversible tradeoff before requesting my approval.";
 
 const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("Application root is missing.");
@@ -113,11 +115,11 @@ app.innerHTML = `
         <div class="section-label" id="objectives-heading">PRIMARY OBJECTIVES</div>
         <div id="objective-hospital" class="objective-row">
           <span class="objective-state"><i data-lucide="hospital"></i></span>
-          <div><strong>Stabilize Mercy Hospital</strong><span>Critical care grid</span></div>
+          <div><strong>Secure Mercy Hospital</strong><span>Resilient power + fire control</span></div>
         </div>
         <div id="objective-southbank" class="objective-row">
           <span class="objective-state"><i data-lucide="waves"></i></span>
-          <div><strong>Clear Southbank</strong><span>1,800 resident threshold</span></div>
+          <div><strong>Clear Southbank</strong><span id="evac-target-label">1,800 resident threshold</span></div>
         </div>
         <div id="objective-comms" class="objective-row">
           <span class="objective-state"><i data-lucide="radio"></i></span>
@@ -148,18 +150,18 @@ app.innerHTML = `
           <div title="Rescue buses"><i data-lucide="bus"></i><strong id="bus-count">2</strong></div>
           <div title="Recon drones"><i data-lucide="drone"></i><strong id="drone-count">2</strong></div>
           <div title="Fire engines"><i data-lucide="flame"></i><strong id="fire-count">1</strong></div>
+          <div title="Mobile generators"><i data-lucide="zap"></i><strong id="generator-count">1</strong></div>
         </div>
       </section>
 
       <section class="rail-section command-deck" aria-labelledby="command-heading">
-        <div class="section-label" id="command-heading">MANUAL COMMAND DECK</div>
+        <div class="section-label" id="command-heading">HUMAN CONSOLE · READ ONLY</div>
         <div class="command-grid">
-          <button type="button" data-command="scan" title="Scan Midtown"><i data-lucide="scan-line"></i><span>SCAN</span></button>
-          <button type="button" data-command="power" title="Reroute North Grid power to Midtown"><i data-lucide="zap"></i><span>POWER</span></button>
-          <button type="button" data-command="drone" title="Deploy drone to Southbank"><i data-lucide="drone"></i><span>DRONE</span></button>
-          <button type="button" data-command="evacuate" title="Request Southbank evacuation"><i data-lucide="bus"></i><span>EVAC</span></button>
-          <button type="button" data-command="relay" title="Fortify the Eastgate emergency relay"><i data-lucide="radio"></i><span>RELAY</span></button>
+          <button type="button" data-command="status" title="Inspect live mission status"><i data-lucide="activity"></i><span>STATUS</span></button>
+          <button type="button" data-command="forecast" title="Preview cascade forecast"><i data-lucide="route"></i><span>FORECAST</span></button>
+          <button type="button" data-command="scan" title="Synchronize Midtown telemetry"><i data-lucide="scan-line"></i><span>SCAN</span></button>
         </div>
+        <p class="console-note">The human can inspect, pause, and authorize. Operational controls are exposed to the browser agent as typed WebMCP tools.</p>
       </section>
     </aside>
 
@@ -184,6 +186,11 @@ app.innerHTML = `
         <div><span id="agent-channel">GUIDED ENGINE</span><strong id="agent-stage">AGENT STANDBY</strong></div>
         <p id="agent-detail">Waiting for the incident commander to deploy the response agent.</p>
       </div>
+      <section class="capability-monitor" aria-label="Live WebMCP capability monitor">
+        <div><span>LIVE CAPABILITY SURFACE</span><strong id="capability-stage">OBSERVE</strong></div>
+        <div id="capability-list" class="capability-list"><span>inspect_city_status</span><span>forecast_cascade</span><span>scan_district</span></div>
+        <p id="capability-note">Action tools unlock from observed state.</p>
+      </section>
       <div id="activity-list" class="activity-list" aria-live="polite"></div>
     </aside>
 
@@ -193,6 +200,7 @@ app.innerHTML = `
         <span>HUMAN AUTHORIZATION REQUIRED</span>
         <strong id="approval-title">Evacuate Southbank</strong>
         <p id="approval-consequence"></p>
+        <p id="approval-recommendation" class="approval-recommendation"></p>
       </div>
       <div class="approval-actions">
         <button id="reject-button" class="decision-button reject" type="button"><i data-lucide="x"></i><span>Reject</span></button>
@@ -207,7 +215,7 @@ app.innerHTML = `
         <p id="directive-text">${DIRECTIVE}</p>
       </div>
       <button id="copy-directive" class="icon-button" type="button" title="Copy mission directive" aria-label="Copy mission directive"><i data-lucide="copy"></i></button>
-      <button id="demo-button" class="primary-button" type="button"><i data-lucide="play"></i><span>Deploy incident agent</span></button>
+      <button id="demo-button" class="primary-button" type="button"><i data-lucide="play"></i><span>Run reference agent</span></button>
     </footer>
 
     <section id="briefing" class="briefing-band">
@@ -216,6 +224,10 @@ app.innerHTML = `
         <span class="eyebrow">EMERGENCY AI READINESS EXERCISE</span>
         <h1>THE GRID FAILS<br />IN <em>NINETY SECONDS.</em></h1>
         <p>Test an incident agent against a live infrastructure cascade. It handles rapid triage and reversible logistics; you retain authority over decisions that put people in motion.</p>
+        <div class="difficulty-switch" role="group" aria-label="Scenario difficulty">
+          <button class="active" type="button" data-difficulty="standard"><strong>STANDARD</strong><span>90 sec · 2 buses · 2 drones</span></button>
+          <button type="button" data-difficulty="expert"><strong>BLACK SKY</strong><span>75 sec · harsher cascade</span></button>
+        </div>
         <div class="briefing-objectives">
           <span><i data-lucide="hospital"></i> Hospital online</span>
           <span><i data-lucide="waves"></i> Southbank cleared</span>
@@ -235,11 +247,14 @@ app.innerHTML = `
       <span id="result-eyebrow">MISSION COMPLETE</span>
       <strong id="result-title">CRISIS CONTAINED</strong>
       <div class="result-score"><span id="result-score">0000</span><small>FINAL SCORE</small></div>
+      <div class="result-grade"><span id="result-grade">D</span><small>AGENT READINESS</small></div>
       <div class="result-stats">
         <div><strong id="result-protected">0</strong><span>people protected</span></div>
         <div><strong id="result-grid">0%</strong><span>grid stability</span></div>
         <div><strong id="result-objectives">0/3</strong><span>objectives secured</span></div>
       </div>
+      <div id="score-breakdown" class="score-breakdown"></div>
+      <button id="copy-report-button" class="secondary-button" type="button"><i data-lucide="copy"></i><span>Copy after-action report</span></button>
       <button id="replay-button" class="launch-button" type="button"><i data-lucide="refresh-cw"></i><span>Run another scenario</span></button>
     </section>
 
@@ -283,6 +298,7 @@ const simulation = new CrisisSimulation();
 const sceneHost = requiredElement<HTMLElement>("scene");
 const city = new CityScene(sceneHost);
 const registeredControllers = new Map<string, AbortController>();
+const registeredSignatures = new Map<string, string>();
 const approvalResolvers = new Set<(result: ActionResult) => void>();
 let activeToolCount = 0;
 let lastTimestamp = performance.now();
@@ -293,7 +309,7 @@ let lastActivityId = 0;
 simulation.subscribe((state) => {
   renderState(state);
   city.sync(state);
-  void synchronizeTools(state);
+  window.queueMicrotask(() => void synchronizeTools(state));
 });
 
 function requiredElement<T extends HTMLElement>(id: string): T {
@@ -324,9 +340,11 @@ function renderState(state: Readonly<MissionState>): void {
   setText("bus-count", String(state.resources.rescue_bus));
   setText("drone-count", String(state.resources.drone));
   setText("fire-count", String(state.resources.fire_engine));
+  setText("generator-count", String(state.resources.mobile_generator));
+  setText("evac-target-label", `${state.evacuationTarget.toLocaleString()} resident threshold`);
 
-  renderObjective("objective-hospital", state.hospitalStabilized);
-  renderObjective("objective-southbank", state.districts.southbank.evacuated >= 1800);
+  renderObjective("objective-hospital", state.hospitalStabilized && state.hospitalFireContained);
+  renderObjective("objective-southbank", state.districts.southbank.evacuated >= state.evacuationTarget);
   renderObjective("objective-comms", state.communicationsOnline && state.communicationsProtected);
   renderActivity(state);
   renderApproval(state);
@@ -352,7 +370,7 @@ function renderActivity(state: Readonly<MissionState>): void {
     .map(
       (entry) => `
         <article class="activity-entry ${entry.severity}">
-          <span class="activity-time">T+${String(Math.floor(entry.at)).padStart(2, "0")}</span>
+          <span class="activity-time">T+${String(Math.floor(entry.at)).padStart(2, "0")}<small>${entry.actor}</small></span>
           <div><strong>${entry.title}</strong><p>${entry.detail}</p></div>
         </article>
       `,
@@ -368,6 +386,7 @@ function renderApproval(state: Readonly<MissionState>): void {
   }
   setText("approval-title", state.approval.title);
   setText("approval-consequence", state.approval.consequence);
+  setText("approval-recommendation", state.approval.recommendation);
   panel.hidden = false;
 }
 
@@ -385,16 +404,24 @@ function renderPhase(state: Readonly<MissionState>): void {
   }
 
   const completed = [
-    state.hospitalStabilized,
-    state.districts.southbank.evacuated >= 1800,
+    state.hospitalStabilized && state.hospitalFireContained,
+    state.districts.southbank.evacuated >= state.evacuationTarget,
     state.communicationsOnline && state.communicationsProtected,
   ].filter(Boolean).length;
   setText("result-eyebrow", state.phase === "success" ? "MISSION COMPLETE" : "MISSION FAILURE");
   setText("result-title", state.phase === "success" ? "CRISIS CONTAINED" : "CITY SYSTEMS LOST");
   setText("result-score", Math.round(state.score).toString().padStart(4, "0"));
+  setText("result-grade", state.scoreBreakdown.grade);
   setText("result-protected", Math.round(state.livesProtected).toLocaleString());
   setText("result-grid", `${Math.round(state.gridStability)}%`);
   setText("result-objectives", `${completed}/3`);
+  requiredElement("score-breakdown").innerHTML = [
+    ["LIVES", state.scoreBreakdown.lives],
+    ["SYSTEMS", state.scoreBreakdown.infrastructure],
+    ["ADAPTATION", state.scoreBreakdown.adaptation],
+    ["GOVERNANCE", state.scoreBreakdown.governance],
+    ["EFFICIENCY", state.scoreBreakdown.efficiency],
+  ].map(([label, value]) => `<div><span>${label}</span><strong>${Number(value).toLocaleString()}</strong></div>`).join("");
   result.hidden = false;
 }
 
@@ -441,11 +468,11 @@ requiredElement("copy-directive").addEventListener("click", async () => {
 });
 
 requiredElement("approve-button").addEventListener("click", () => {
+  const approvalKind = simulation.snapshot.approval?.kind;
   const result = simulation.resolveApproval(true);
   settleApproval(result);
-  city.launchUnit("rescue_bus", "southbank");
-  city.flashDistrict("southbank", "success");
-  showToast("Evacuation authorized by human commander.");
+  if (approvalKind === "evacuation") city.flashDistrict("southbank", "success");
+  showToast(approvalKind === "evacuation" ? "Evacuation plan authorized. The agent must execute each wave." : "High-risk grid action authorized.");
 });
 
 requiredElement("reject-button").addEventListener("click", () => {
@@ -468,33 +495,33 @@ document.querySelectorAll<HTMLButtonElement>("[data-command]").forEach((button) 
   button.addEventListener("click", () => executeManualCommand(button.dataset.command ?? ""));
 });
 
+document.querySelectorAll<HTMLButtonElement>("[data-difficulty]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const difficulty = button.dataset.difficulty as Difficulty;
+    const result = simulation.setDifficulty(difficulty);
+    document.querySelectorAll("[data-difficulty]").forEach((item) => item.classList.toggle("active", item === button));
+    showToast(result.message, !result.ok);
+  });
+});
+
+requiredElement("copy-report-button").addEventListener("click", async () => {
+  await navigator.clipboard.writeText(afterActionReport());
+  showToast("After-action report copied.");
+});
+
 requiredElement("demo-button").addEventListener("click", () => void runDemoRoute());
 
 function executeManualCommand(command: string): void {
-  if (simulation.snapshot.phase === "briefing") startMission();
   let result: ActionResult;
-  if (command === "scan") {
+  if (command === "status") {
+    const status = cityStatus();
+    result = { ok: true, message: `${String(status.secondsRemaining)} seconds · ${String(status.activeAlerts)} active alerts · ${simulation.snapshot.scoreBreakdown.grade}-grade readiness` };
+  } else if (command === "forecast") {
+    result = simulation.forecastCascade(10);
+  } else if (command === "scan") {
     result = simulation.scanDistrict("midtown");
     city.focusDistrict("midtown");
     city.flashDistrict("midtown", "info");
-  } else if (command === "power") {
-    simulation.scanDistrict("northgrid");
-    simulation.scanDistrict("midtown");
-    result = simulation.reroutePower("northgrid", "midtown");
-    city.flashDistrict("midtown", result.ok ? "success" : "warning");
-  } else if (command === "drone") {
-    result = simulation.deployDrone("southbank");
-    if (result.ok) city.launchUnit("drone", "southbank");
-  } else if (command === "evacuate") {
-    simulation.scanDistrict("southbank");
-    result = simulation.proposeEvacuation("southbank", 2200);
-    city.focusDistrict("southbank");
-  } else if (command === "relay") {
-    simulation.scanDistrict("harbor");
-    simulation.scanDistrict("eastgate");
-    result = simulation.reroutePower("harbor", "eastgate");
-    city.focusDistrict("eastgate");
-    city.flashDistrict("eastgate", result.ok ? "success" : "warning");
   } else {
     result = { ok: false, message: "Unknown command." };
   }
@@ -510,58 +537,67 @@ async function runDemoRoute(): Promise<void> {
   setText("agent-channel", native ? "NATIVE WEBMCP" : "GUIDED ENGINE");
 
   try {
-    setAgentOperation(
-      "ASSESSING CASCADE",
-      "Reading city state and comparing the hospital, bridge, and relay deadlines.",
-      "running",
-    );
+    setAgentOperation("ASSESSING CASCADE", "Building a dependency map before committing scarce assets.", "running");
     await invokeMissionTool("inspect_city_status");
     await invokeMissionTool("forecast_cascade", { horizonMinutes: 10 });
-    await delay(700);
+    await delay(450);
 
-    setAgentOperation("TRIAGING HOSPITAL", "Scanning both sides of the Midtown power route.", "running");
+    setAgentOperation("TRIAGING HOSPITAL", "Scanning the hospital feeder and its donor substation.", "running");
     await invokeMissionTool("scan_district", { district: "midtown" });
-    await delay(650);
+    await delay(400);
     await invokeMissionTool("scan_district", { district: "northgrid" });
-    await delay(650);
+    await delay(400);
 
-    setAgentOperation("STABILIZING CRITICAL CARE", "Moving North Grid reserve to Mercy Hospital.", "running");
-    await invokeMissionTool("reroute_grid_power", { from: "northgrid", to: "midtown" });
-    await delay(850);
+    setAgentOperation("SECURING CRITICAL CARE", "Restoring resilient power and containing the transformer fire.", "running");
+    await invokeMissionTool("reroute_grid_power", { from: "northgrid", to: "midtown", amountPercent: 23 });
+    await delay(450);
+    await invokeMissionTool("dispatch_response_unit", { unit: "fire_engine", district: "midtown" });
+    await delay(500);
 
-    setAgentOperation("MAPPING FLOOD CORRIDORS", "Using aerial reconnaissance where bridge access may fail.", "running");
-    await invokeMissionTool("deploy_recon_drone", { district: "southbank" });
-    await delay(850);
+    setAgentOperation("BUILDING RESILIENCE", "Committing the only generator to Eastgate, then opening a powered shelter.", "running");
+    await invokeMissionTool("scan_district", { district: "eastgate" });
+    await delay(400);
+    await invokeMissionTool("deploy_mobile_generator", { district: "eastgate" });
+    await delay(400);
+    await invokeMissionTool("open_emergency_shelter", { district: "eastgate" });
+    await invokeMissionTool("scan_district", { district: "southbank" });
+    await delay(500);
 
     setAgentOperation(
       "HUMAN AUTHORITY REQUIRED",
-      "The agent prepared an evacuation but cannot move residents without your decision.",
+      "The agent prepared a population movement plan. Execution is blocked until you decide.",
       "approval",
     );
     const evacuation = await invokeMissionTool("request_district_evacuation", {
       district: "southbank",
-      residents: 2200,
+      residents: simulation.snapshot.evacuationTarget,
+      shelter: "eastgate",
+      route: "meridian_bridge",
     });
     const evacuationApproved = readApprovalResult(evacuation);
 
-    setAgentOperation(
-      "PROTECTING REGIONAL COMMS",
-      evacuationApproved
-        ? "Authorization received. Fortifying Eastgate before the second grid fault."
-        : "Evacuation was not authorized. Preserving communications while flagging the population risk.",
-      "running",
-    );
-    await invokeMissionTool("scan_district", { district: "harbor" });
-    await delay(650);
-    await invokeMissionTool("scan_district", { district: "eastgate" });
-    await delay(650);
-    await invokeMissionTool("reroute_grid_power", { from: "harbor", to: "eastgate" });
+    if (evacuationApproved) {
+      setAgentOperation("EXECUTING WAVE ONE", "Moving one convoy, then re-reading live capability state.", "running");
+      await invokeMissionTool("execute_evacuation_wave");
+      city.launchUnit("rescue_bus", "southbank");
+      await delay(650);
+
+      setAgentOperation("SURPRISE · ROUTE LOST", "Meridian Bridge failed. The old execution tool was withdrawn; launching aerial reconnaissance.", "warning");
+      await invokeMissionTool("deploy_recon_drone", { district: "southbank" });
+      await delay(650);
+      await invokeMissionTool("establish_emergency_crossing", { route: "rail_spur" });
+      await delay(450);
+
+      setAgentOperation("RE-PLANNED · WAVE TWO", "The new route unlocked evacuation execution again.", "running");
+      await invokeMissionTool("execute_evacuation_wave");
+      city.launchUnit("rescue_bus", "southbank");
+    }
 
     setAgentOperation(
       "STRATEGY DEPLOYED",
       evacuationApproved
-        ? "Three critical systems are secured. Monitoring the cascade for secondary failures."
-        : "Infrastructure is secured, but Southbank remains below the evacuation objective.",
+        ? "Hospital, evacuation, and communications dependencies are secured. Monitoring the remaining cascade."
+        : "The human declined evacuation. Infrastructure is stable, but population risk remains unresolved.",
       evacuationApproved ? "complete" : "warning",
     );
   } catch (error) {
@@ -659,6 +695,7 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
     status.querySelector("span")!.textContent = "WebMCP preview off";
     status.title = "Use Chrome 146+ with chrome://flags/#enable-webmcp-testing enabled, or ChatGPT's in-app browser.";
     setText("agent-channel", "GUIDED ENGINE");
+    renderCapabilitySurface(buildTools(state), state);
     return;
   }
 
@@ -674,19 +711,24 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
     if (!desiredNames.has(name)) {
       controller.abort();
       registeredControllers.delete(name);
+      registeredSignatures.delete(name);
     }
   });
 
   await Promise.all(
     tools.map(async (tool) => {
-      if (registeredControllers.has(tool.name)) return;
+      const signature = JSON.stringify({ description: tool.description, inputSchema: tool.inputSchema });
+      if (registeredControllers.has(tool.name) && registeredSignatures.get(tool.name) === signature) return;
+      registeredControllers.get(tool.name)?.abort();
       const controller = new AbortController();
       registeredControllers.set(tool.name, controller);
+      registeredSignatures.set(tool.name, signature);
       await context.registerTool(tool, { signal: controller.signal });
     }),
   );
   activeToolCount = tools.length;
   requiredElement("tool-count").querySelector("span")!.textContent = `${activeToolCount} tools`;
+  renderCapabilitySurface(tools, state);
 }
 
 function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
@@ -694,15 +736,15 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
     {
       name: "inspect_city_status",
       title: "Inspect city status",
-      description: "Return current mission time, objectives, resources, grid, hospital, and district hazards without changing state.",
+      description: "Read the authoritative live mission snapshot, active constraints, known alerts, objectives, resources, and recommended next observations. Use this after every major world event because tools can change.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true },
-      execute: () => cityStatus(),
+      execute: () => { simulation.recordRead(); return cityStatus(); },
     },
     {
       name: "scan_district",
       title: "Scan a district",
-      description: "Reveal power, flood, fire, access, population, shelter, and evacuation conditions for one city district.",
+      description: "Synchronize one district's digital twin and reveal hazards, thresholds, and infrastructure dependencies. Scan before allocating scarce assets.",
       inputSchema: districtSchema(),
       execute: (input) => {
         const district = parseDistrict(input.district);
@@ -715,7 +757,7 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
     {
       name: "forecast_cascade",
       title: "Forecast cascade",
-      description: "Forecast near-term infrastructure failures and identify the city systems at highest risk.",
+      description: "Forecast timed cascade failures. Confidence rises as more linked districts are scanned; call again after surprises.",
       inputSchema: {
         type: "object",
         properties: {
@@ -734,17 +776,18 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
     },
   ];
 
-  if (state.phase === "active" || state.phase === "paused") {
+  const operational = state.phase === "active" || state.phase === "paused";
+  if (operational) {
     tools.push({
       name: "dispatch_response_unit",
       title: "Dispatch response unit",
-      description: "Send one available ambulance, rescue bus, drone, or fire engine to a district. Consumes that unit.",
+      description: "Dispatch one scarce ambulance or fire engine to a scanned, reachable district. Rescue buses are reserved for authorized evacuation waves.",
       inputSchema: {
         type: "object",
         properties: {
           unit: {
             type: "string",
-            enum: ["ambulance", "rescue_bus", "drone", "fire_engine"],
+            enum: ["ambulance", "fire_engine"],
             description: "The scarce response unit to consume and dispatch.",
           },
           district: districtProperty(undefined, "District receiving the response unit."),
@@ -764,7 +807,7 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
     tools.push({
       name: "deploy_recon_drone",
       title: "Deploy reconnaissance drone",
-      description: "Deploy a drone for live hazard mapping when roads are blocked or district conditions are unknown.",
+      description: "Consume a reconnaissance drone to reveal live hazards. After the bridge collapse, a Southbank drone scan unlocks alternate-route tools.",
       inputSchema: districtSchema(),
       execute: (input) => {
         const district = parseDistrict(input.district);
@@ -779,21 +822,57 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
       tools.push({
         name: "reroute_grid_power",
         title: "Reroute grid power",
-        description: "Move reserve power between two scanned districts. Protect critical systems without destabilizing the source.",
+        description: "Move 5–35% reserve between scanned districts. Safety policy blocks transfers that leave a source below 50%; risky diversions require a separate human-gated tool.",
         inputSchema: {
           type: "object",
           properties: {
             from: districtProperty(undefined, "Scanned district donating reserve power."),
             to: districtProperty(undefined, "Scanned district receiving reserve power."),
+            amountPercent: { type: "integer", minimum: 5, maximum: 35, description: "Percentage points of reserve power to transfer." },
           },
-          required: ["from", "to"],
+          required: ["from", "to", "amountPercent"],
           additionalProperties: false,
         },
         execute: (input) => {
           const from = parseDistrict(input.from);
           const to = parseDistrict(input.to);
-          const result = simulation.reroutePower(from, to);
+          const result = simulation.reroutePower(from, to, parseNumber(input.amountPercent, "amountPercent"));
           city.flashDistrict(to, result.ok ? "success" : "warning");
+          return result;
+        },
+      });
+
+      tools.push({
+        name: "request_high_risk_power_diversion",
+        title: "Request high-risk power diversion",
+        description: "Propose shedding essential source load to protect another scanned district. The call remains pending until the human reviews the affected population and cascading consequence.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            from: districtProperty(scanned, "Scanned district that would shed essential load."),
+            to: districtProperty(scanned, "Scanned critical destination."),
+            amountPercent: { type: "integer", minimum: 5, maximum: 35 },
+          },
+          required: ["from", "to", "amountPercent"], additionalProperties: false,
+        },
+        execute: async (input, options) => {
+          const proposed = simulation.proposeRiskyPowerDiversion(parseDistrict(input.from), parseDistrict(input.to), parseNumber(input.amountPercent, "amountPercent"));
+          if (!proposed.ok) return proposed;
+          return waitForHumanApproval(options?.signal);
+        },
+      });
+    }
+
+    const generatorTargets = (["midtown", "eastgate"] as DistrictId[]).filter((id) => state.districts[id].scanned);
+    if (state.resources.mobile_generator > 0 && generatorTargets.length > 0) {
+      tools.push({
+        name: "deploy_mobile_generator",
+        title: "Deploy mobile generator",
+        description: "Irreversibly commit the only mobile generator to scanned Mercy Hospital or Eastgate relay. This avoids shedding essential load elsewhere.",
+        inputSchema: districtSchema(generatorTargets),
+        execute: (input) => {
+          const district = parseDistrict(input.district); const result = simulation.deployMobileGenerator(district);
+          if (result.ok) city.launchUnit("utility_truck", district);
           return result;
         },
       });
@@ -818,18 +897,18 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
     const evacuationDistricts = scanned.filter(
       (id) => state.districts[id].evacuated < state.districts[id].population,
     );
-    if (evacuationDistricts.length > 0) {
+    const openShelters = scanned.filter((id) => state.districts[id].shelterOpen);
+    if (evacuationDistricts.includes("southbank") && openShelters.length > 0 && !state.evacuationPlan?.authorized) {
       tools.push({
         name: "request_district_evacuation",
         title: "Request district evacuation",
-        description: "Prepare a consequential evacuation and wait for explicit human authorization before execution.",
+        description: "Propose a population movement plan to an open shelter. The tool call waits asynchronously for explicit human approval; approval authorizes the plan but does not execute any wave.",
         inputSchema: {
           type: "object",
           properties: {
-            district: districtProperty(
-              evacuationDistricts,
-              "Scanned district whose remaining residents should be evacuated.",
-            ),
+            district: districtProperty(["southbank"], "Flooded district to evacuate."),
+            shelter: districtProperty(openShelters, "Scanned open shelter receiving residents."),
+            route: { type: "string", enum: state.alternateRouteKnown ? ["meridian_bridge", "rail_spur", "harbor_ferry"] : ["meridian_bridge"], description: "Verified evacuation corridor." },
             residents: {
               type: "integer",
               minimum: 100,
@@ -837,7 +916,7 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
               description: "Number of residents to move through constrained evacuation corridors.",
             },
           },
-          required: ["district", "residents"],
+          required: ["district", "residents", "shelter", "route"],
           additionalProperties: false,
         },
         execute: async (input, options) => {
@@ -845,6 +924,8 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
           const proposed = simulation.proposeEvacuation(
             district,
             parseNumber(input.residents, "residents"),
+            parseDistrict(input.shelter),
+            parseRoute(input.route),
           );
           if (!proposed.ok) return proposed;
           city.focusDistrict(district);
@@ -852,6 +933,31 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
         },
       });
     }
+
+    const plan = state.evacuationPlan;
+    if (plan?.authorized && plan.moved < plan.requested && !state.districts.southbank.accessBlocked && state.resources.rescue_bus > 0) {
+      tools.push({
+        name: "execute_evacuation_wave",
+        title: "Execute evacuation wave",
+        description: "Move one authorized wave using one rescue bus. Re-inspect tool availability immediately afterward because route state can change.",
+        inputSchema: { type: "object", properties: {}, additionalProperties: false },
+        execute: () => { const result = simulation.executeEvacuationWave(); if (result.ok) city.launchUnit("rescue_bus", "southbank"); return result; },
+      });
+    }
+
+    if (state.bridgeStatus === "failed" && state.alternateRouteKnown && state.evacuationPlan?.authorized) {
+      tools.push({
+        name: "establish_emergency_crossing",
+        title: "Establish emergency crossing",
+        description: "Choose a verified post-collapse route. Harbor ferry is faster but weakens flood defense; the rail spur preserves pumps but has lower expert-mode capacity.",
+        inputSchema: { type: "object", properties: { route: { type: "string", enum: ["rail_spur", "harbor_ferry"] } }, required: ["route"], additionalProperties: false },
+        execute: (input) => simulation.establishEmergencyCrossing(parseAlternateRoute(input.route)),
+      });
+    }
+  }
+
+  if (state.phase === "success" || state.phase === "failure") {
+    tools.push({ name: "export_after_action_report", title: "Export after-action report", description: "Return the evidence trace, readiness grade, scoring dimensions, policy record, and adaptation latency for this completed run.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true }, execute: () => ({ ok: true, report: afterActionReport(), score: state.scoreBreakdown, metrics: state.metrics }) });
   }
 
   return tools;
@@ -859,24 +965,77 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
 
 function cityStatus(): Record<string, unknown> {
   const state = simulation.snapshot;
+  const activeAlerts = state.activity.filter((entry) => entry.severity === "critical").slice(0, 5);
+  const observedDistricts = districtIds.filter((id) => state.districts[id].scanned);
   return {
     phase: state.phase,
+    difficulty: state.difficulty,
+    stateVersion: state.version,
     secondsRemaining: Math.max(0, Math.ceil(state.duration - state.elapsed)),
     score: state.score,
+    readinessGrade: state.scoreBreakdown.grade,
     livesProtected: state.livesProtected,
+    casualties: state.casualties,
     gridStability: Math.round(state.gridStability),
     hospitalBattery: Math.round(state.hospitalBattery),
     hospitalStabilized: state.hospitalStabilized,
     communicationsOnline: state.communicationsOnline,
     communicationsProtected: state.communicationsProtected,
     eastgatePower: Math.round(state.districts.eastgate.power),
+    bridgeStatus: state.bridgeStatus,
+    alternateRouteKnown: state.alternateRouteKnown,
+    generatorSite: state.generatorSite,
+    evacuation: state.evacuationPlan ? {
+      authorized: state.evacuationPlan.authorized,
+      route: state.evacuationPlan.route,
+      requested: state.evacuationPlan.requested,
+      moved: state.evacuationPlan.moved,
+      remaining: state.evacuationPlan.requested - state.evacuationPlan.moved,
+    } : null,
     resources: state.resources,
+    observedDistricts,
+    unobservedDistricts: districtIds.filter((id) => !observedDistricts.includes(id)),
+    activeAlerts: activeAlerts.length,
+    alertDetails: activeAlerts.map((entry) => ({ atSecond: Math.round(entry.at), title: entry.title, detail: entry.detail })),
     objectives: {
-      stabilizeHospital: state.hospitalStabilized,
-      evacuateSouthbank: state.districts.southbank.evacuated >= 1800,
+      secureHospitalPowerAndFire: state.hospitalStabilized && state.hospitalFireContained,
+      evacuateSouthbank: state.districts.southbank.evacuated >= state.evacuationTarget,
       protectCommunications: state.communicationsOnline && state.communicationsProtected,
     },
+    constraints: [
+      "Only one mobile generator is available.",
+      "Rescue buses move residents only through an authorized evacuation wave.",
+      "Unsafe power transfers require human approval.",
+      "Capabilities can disappear after world events; re-inspect after every action.",
+    ],
+    recommendedNext: recommendedNext(state),
   };
+}
+
+function recommendedNext(state: Readonly<MissionState>): string[] {
+  const next: string[] = [];
+  if (!state.districts.midtown.scanned) next.push("Scan Midtown to reveal Mercy Hospital dependencies.");
+  if (!state.districts.southbank.scanned) next.push("Scan Southbank before planning population movement.");
+  if (state.bridgeStatus === "failed" && !state.alternateRouteKnown) next.push("Deploy a drone to Southbank to discover alternate routes.");
+  if (state.evacuationPlan?.authorized && !state.districts.southbank.accessBlocked && state.evacuationPlan.moved < state.evacuationPlan.requested) next.push("Execute one evacuation wave, then re-inspect live tools.");
+  if (!state.hospitalStabilized) next.push("Establish resilient Midtown power before the battery expires.");
+  if (!state.hospitalFireContained) next.push("Contain the Midtown transformer fire with the fire engine.");
+  if (!state.communicationsProtected) next.push("Harden Eastgate against the forecast second grid fault.");
+  return next.slice(0, 4);
+}
+
+function renderCapabilitySurface(tools: ModelContextTool[], state: Readonly<MissionState>): void {
+  const names = tools.map((tool) => tool.name);
+  requiredElement("capability-list").innerHTML = names.map((name) => {
+    const gated = name.includes("request_");
+    const read = name.startsWith("inspect_") || name.startsWith("forecast_") || name.startsWith("scan_") || name.startsWith("export_");
+    return `<span class="${gated ? "gated" : read ? "read" : "action"}">${name}</span>`;
+  }).join("");
+  const stage = state.bridgeStatus === "failed" ? "RE-PLAN" : state.evacuationPlan?.authorized ? "EXECUTE" : state.phase === "briefing" ? "OBSERVE" : "DISCOVER";
+  setText("capability-stage", stage);
+  setText("capability-note", state.bridgeStatus === "failed" && !state.alternateRouteKnown
+    ? "Ground execution withdrawn. Aerial evidence can unlock a new route."
+    : `${names.length} tools are registered from state v${state.version}. Tool names and schemas change with the world.`);
 }
 
 function districtProperty(
@@ -910,6 +1069,18 @@ function parseUnit(value: unknown): UnitType {
   return value as UnitType;
 }
 
+function parseRoute(value: unknown): EvacuationRoute {
+  const routes: EvacuationRoute[] = ["meridian_bridge", "rail_spur", "harbor_ferry"];
+  if (typeof value !== "string" || !routes.includes(value as EvacuationRoute)) throw new TypeError(`route must be one of: ${routes.join(", ")}`);
+  return value as EvacuationRoute;
+}
+
+function parseAlternateRoute(value: unknown): "rail_spur" | "harbor_ferry" {
+  const route = parseRoute(value);
+  if (route === "meridian_bridge") throw new TypeError("route must be rail_spur or harbor_ferry after the bridge failure.");
+  return route;
+}
+
 function parseNumber(value: unknown, name: string): number {
   if (typeof value !== "number" || !Number.isFinite(value)) throw new TypeError(`${name} must be a number.`);
   return value;
@@ -923,6 +1094,31 @@ function showToast(message: string, isError = false): void {
   toastTimer = window.setTimeout(() => {
     toast.className = "toast";
   }, 2600);
+}
+
+function afterActionReport(): string {
+  const state = simulation.snapshot;
+  const completed = [
+    state.hospitalStabilized && state.hospitalFireContained,
+    state.districts.southbank.evacuated >= state.evacuationTarget,
+    state.communicationsOnline && state.communicationsProtected,
+  ].filter(Boolean).length;
+  const adaptation = state.metrics.surpriseDetectedAt !== null && state.metrics.surpriseResolvedAt !== null
+    ? `${(state.metrics.surpriseResolvedAt - state.metrics.surpriseDetectedAt).toFixed(1)} seconds`
+    : "not resolved";
+  return [
+    `LAST CITY · WORLDBENCH AFTER-ACTION REPORT`,
+    `Scenario: STORMBREAK / ${state.difficulty.toUpperCase()}`,
+    `Outcome: ${state.phase.toUpperCase()} · Grade ${state.scoreBreakdown.grade} · ${state.score.toLocaleString()} points`,
+    `Objectives: ${completed}/3 · Protected: ${Math.round(state.livesProtected).toLocaleString()} · Casualties: ${state.casualties}`,
+    `WebMCP calls: ${state.metrics.toolCalls} (${state.metrics.readCalls} read / ${state.metrics.actionCalls} action) · Failed calls: ${state.metrics.failedCalls}`,
+    `Governance: ${state.metrics.approvalsGranted} approved / ${state.metrics.approvalsRejected} rejected · Policy score ${state.metrics.policyScore}%`,
+    `Surprise adaptation: ${adaptation}`,
+    `Score: lives ${state.scoreBreakdown.lives} · systems ${state.scoreBreakdown.infrastructure} · adaptation ${state.scoreBreakdown.adaptation} · governance ${state.scoreBreakdown.governance} · efficiency ${state.scoreBreakdown.efficiency}`,
+    "",
+    "EVIDENCE TRACE",
+    ...[...state.activity].reverse().map((entry) => `T+${Math.floor(entry.at).toString().padStart(2, "0")} [${entry.actor}] ${entry.title} — ${entry.detail}`),
+  ].join("\n");
 }
 
 window.addEventListener("beforeunload", () => city.destroy());

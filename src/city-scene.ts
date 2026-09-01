@@ -818,6 +818,7 @@ export class CityScene {
       rescue_bus: 0xffcf4a,
       drone: 0x4ee1ff,
       fire_engine: 0xff4358,
+      utility_truck: 0x9cff9f,
     };
     const body = new THREE.Mesh(
       new THREE.BoxGeometry(unit === "rescue_bus" ? 4.8 : 3.2, 1.2, 1.8),
@@ -904,7 +905,7 @@ export class CityScene {
       }
     }
 
-    if (this.currentState?.bridgeCollapsed) {
+    if (this.currentState && this.currentState.bridgeStatus !== "open") {
       const bridge = this.scene.children.find(
         (child) => child instanceof THREE.Mesh && child.position.x === 3 && child.position.z === 30,
       );
