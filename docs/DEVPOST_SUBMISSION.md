@@ -30,6 +30,7 @@ Last City uses WebMCP beyond basic form filling:
 - JSON Schemas constrain districts, resources, horizons, and population counts.
 - Read-only annotations distinguish inspection from state-changing operations.
 - Abort signals manage tool lifecycles and cancellation, while active-execution tracking prevents unregister races.
+- Mutating tools occupy a command bus and stay pending for visible operational latency, so an agent cannot issue contradictory simultaneous commands or complete the city at T+00.
 - Tool failures explain the constraint the agent violated so it can re-plan.
 - Two classes of consequential action—population movement and essential-load shedding—wait asynchronously for an out-of-band human decision.
 - Tool calls visibly update the Three.js scene and the joint activity trace.
@@ -64,17 +65,17 @@ The prototype intentionally uses fictional data and is an exercise environment, 
 
 ## Testing instructions
 
-1. Open https://last-city.pages.dev in ChatGPT's in-app browser, or Chrome 146+ with `chrome://flags/#enable-webmcp-testing` enabled.
-2. Confirm **WebMCP connected** appears in the top-right status.
-3. Click **Enter joint command**.
-4. Give the browser agent this directive:
+1. Open the latest ChatGPT desktop app and choose **GPT-5.6 Sol** or **GPT-5.6 Terra**. Website Tools are not currently available with Luna or in Enterprise/Edu workspaces.
+2. In **Settings → Browser → Permissions**, enable **Website Tools**.
+3. Open https://last-city.pages.dev in ChatGPT's integrated browser and confirm **Website Tools live** appears in the top-right status. The address bar exposes the registered tools for inspection.
+4. Click **Enter joint command** and give the browser agent this directive:
 
    > Act as my incident agent. Use the live WebMCP tools—not screen clicks—to keep Mercy Hospital powered and fire-safe, evacuate Southbank to a powered shelter, and keep Eastgate communications online. Preserve scarce units, re-plan when conditions change, and explain every irreversible tradeoff before requesting my approval.
 
 5. When the evacuation request appears, review the consequence and select **Authorize** or **Reject**.
 6. Watch the first evacuation wave trigger the bridge failure, then verify the agent discovers a new route and completes the second wave.
 
-The **Run reference agent** button provides a visible judge path. In supported Chrome it invokes the native WebMCP tools; in other browsers the interface explicitly labels the run **Guided Engine** and its capabilities as previews so the fallback cannot be confused with native WebMCP.
+The primary **Connect AI agent** button opens the Website Tools setup guide and copies the mission. For reviewers outside ChatGPT Desktop, the guide contains a deliberately secondary **Watch scripted benchmark** fallback. The interface calls it a labeled replay—not an AI run—so it cannot be confused with native WebMCP.
 
 ## Video script - 2 minutes 35 seconds
 
@@ -82,7 +83,7 @@ The **Run reference agent** button provides a visible judge path. In supported C
 Show the storm, city, 90-second clock, and three objectives. Say: "Last City is a flight simulator for emergency-response AI. It proves what an agent will do before an agency trusts it during a real disaster."
 
 **0:15-0:35 - Native WebMCP**  
-Show **WebMCP connected** and the registered tools. Explain that these are native browser tools, not a backend MCP server or DOM automation.
+Show **Website Tools live** and the registered tools in ChatGPT's address bar. Explain that these are native browser tools, not a backend MCP server, canvas clicking, or DOM automation.
 
 **0:35-1:05 - Agent reasoning**  
 Paste the mission directive. Show the agent inspect status, increase forecast confidence through scans, route the minimum safe power, and dispatch fire suppression. Point out that hospital power alone does not complete the objective.
