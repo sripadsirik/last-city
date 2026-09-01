@@ -61,6 +61,9 @@ test("renders a nonblank city and completes the human approval loop", async ({ p
   await expect(page.locator("#approval-panel")).toBeHidden();
   await expect(page.locator("#objective-southbank")).toHaveClass(/complete/);
 
+  await page.locator('[data-command="relay"]').click();
+  await expect(page.locator("#objective-comms")).toHaveClass(/complete/);
+
   await page.screenshot({ path: testInfo.outputPath("active.png"), fullPage: true });
   expect(pageErrors).toEqual([]);
 });
