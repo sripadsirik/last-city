@@ -92,7 +92,7 @@ app.innerHTML = `
       </div>
 
       <div class="system-status">
-        <button id="webmcp-status" class="status-chip" type="button" title="Open Website Tools connection guide">
+        <button id="webmcp-status" class="status-chip" type="button" title="Open Site tools connection guide">
           <i data-lucide="radio"></i>
           <span>Checking WebMCP</span>
         </button>
@@ -233,7 +233,7 @@ app.innerHTML = `
           <span><i data-lucide="waves"></i> Southbank cleared</span>
           <span><i data-lucide="radio"></i> Relay protected</span>
         </div>
-        <div id="briefing-agent-status" class="briefing-agent-status"><i data-lucide="radio"></i><span>Open in ChatGPT Desktop to activate Website Tools</span></div>
+        <div id="briefing-agent-status" class="briefing-agent-status"><i data-lucide="radio"></i><span>Open in ChatGPT Desktop to activate Site tools</span></div>
         <button id="start-button" class="launch-button" type="button"><i data-lucide="siren"></i><span>Enter joint command</span><i data-lucide="chevron-right"></i></button>
       </div>
       <div class="briefing-signal" aria-hidden="true">
@@ -261,13 +261,13 @@ app.innerHTML = `
 
     <section id="connection-panel" class="connection-panel" role="dialog" aria-modal="true" aria-labelledby="connection-title" hidden>
       <button id="close-connection" class="connection-close" type="button" aria-label="Close connection guide"><i data-lucide="x"></i></button>
-      <span class="eyebrow">WEBSITE TOOLS · NATIVE WEBMCP</span>
+      <span class="eyebrow">SITE TOOLS · NATIVE WEBMCP</span>
       <strong id="connection-title">PUT AN AGENT IN THE COMMAND CHAIR</strong>
       <p>This city is the interface. ChatGPT supplies the incident commander through tools registered by this page.</p>
       <ol class="connection-steps">
         <li><span>01</span><div><strong>Use ChatGPT Desktop</strong><p>Update to the latest app and open this URL in its integrated browser.</p></div></li>
-        <li><span>02</span><div><strong>Select GPT-5.6 Sol or Terra</strong><p>Website Tools are currently unavailable with Luna and in Enterprise or Edu workspaces.</p></div></li>
-        <li><span>03</span><div><strong>Enable Website Tools</strong><p>Settings → Browser → Permissions → Enable Website Tools, then inspect them from the browser address bar.</p></div></li>
+        <li><span>02</span><div><strong>Select GPT-5.6 Sol or Terra</strong><p>Site tools are currently unavailable with Luna and in Enterprise or Edu workspaces.</p></div></li>
+        <li><span>03</span><div><strong>Enable Site tools</strong><p>Settings → Browser → Permissions → Enable site tools, then inspect them from the browser address bar.</p></div></li>
         <li><span>04</span><div><strong>Issue the mission</strong><p>Enter joint command, paste the directive, and retain control of every human authorization.</p></div></li>
       </ol>
       <div class="connection-actions">
@@ -562,7 +562,7 @@ requiredElement("copy-report-button").addEventListener("click", async () => {
 requiredElement("demo-button").addEventListener("click", async () => {
   if (document.modelContext) {
     await navigator.clipboard.writeText(DIRECTIVE);
-    showToast("Mission copied. Ask ChatGPT to use this page's Website Tools.");
+    showToast("Mission copied. Ask ChatGPT to use this page's Site tools.");
     return;
   }
   requiredElement("connection-panel").hidden = false;
@@ -768,11 +768,11 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
   const status = requiredElement("webmcp-status");
   if (!context) {
     status.className = "status-chip unavailable";
-    status.querySelector("span")!.textContent = "Connect Website Tools";
-    status.title = "Open the setup guide for ChatGPT Desktop Website Tools.";
+    status.querySelector("span")!.textContent = "Connect Site tools";
+    status.title = "Open the setup guide for ChatGPT Desktop Site tools.";
     if (!demoRunning) {
       setText("agent-channel", "BROWSER AGENT OFFLINE");
-      setText("agent-detail", "The city is ready. Connect ChatGPT Desktop to expose its native Website Tools.");
+      setText("agent-detail", "The city is ready. Connect ChatGPT Desktop to expose its native Site tools.");
     }
     requiredElement("briefing-agent-status").className = "briefing-agent-status offline";
     requiredElement("briefing-agent-status").querySelector("span")!.textContent = "Agent offline · Open connection guide";
@@ -785,11 +785,11 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
   }
 
   status.className = "status-chip connected";
-  status.querySelector("span")!.textContent = "Website Tools live";
-  status.title = "Native WebMCP Website Tools are registered and ready.";
+  status.querySelector("span")!.textContent = "Site tools live";
+  status.title = "Native WebMCP Site tools are registered and ready.";
   setText("agent-channel", "NATIVE WEBMCP");
   requiredElement("briefing-agent-status").className = "briefing-agent-status connected";
-  requiredElement("briefing-agent-status").querySelector("span")!.textContent = "Agent connected · Native Website Tools detected";
+  requiredElement("briefing-agent-status").querySelector("span")!.textContent = "Agent connected · Native Site tools detected";
   requiredElement("demo-button").querySelector("span")!.textContent = "Copy mission to ChatGPT";
 
   const tools = buildTools(state);
