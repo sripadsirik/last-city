@@ -12,6 +12,8 @@ Emergency teams already run tabletop and operations-based exercises to evaluate 
 
 The initial customer is an emergency operations center, hospital network, utility, or critical-infrastructure operator running repeatable readiness exercises. The platform path is scenario authoring, organization-specific infrastructure models, multiplayer incident roles, after-action analytics, and a marketplace of verified exercise modules.
 
+The product and company roadmap is documented in [WorldBench: the flight simulator for AI agents](docs/WORLDBENCH_VISION.md).
+
 This is grounded in an established training workflow: [FEMA describes games as a way to examine decisions and their consequences](https://www.fema.gov/sites/default/files/documents/fema_eoc-quick-reference-guide.pdf), while [CISA provides customizable tabletop exercise packages for critical-infrastructure stakeholders](https://www.cisa.gov/topics/critical-infrastructure-security-and-resilience).
 
 ## Why it stands out
