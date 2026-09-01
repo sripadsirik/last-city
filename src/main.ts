@@ -277,7 +277,6 @@ const sceneHost = requiredElement<HTMLElement>("scene");
 const city = new CityScene(sceneHost);
 const registeredControllers = new Map<string, AbortController>();
 const approvalResolvers = new Set<(result: ActionResult) => void>();
-let registrationSignature = "";
 let activeToolCount = 0;
 let lastTimestamp = performance.now();
 let toastTimer = 0;
@@ -574,21 +573,19 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
   status.className = "status-chip connected";
   status.querySelector("span")!.textContent = "WebMCP connected";
 
-  const signature = JSON.stringify({
-    phase: state.phase,
-    scanned: districtIds.filter((id) => state.districts[id].scanned),
-    resources: state.resources,
-    approval: Boolean(state.approval),
-  });
-  if (signature === registrationSignature) return;
-  registrationSignature = signature;
-
-  registeredControllers.forEach((controller) => controller.abort());
-  registeredControllers.clear();
-
   const tools = buildTools(state);
+  const desiredNames = new Set(tools.map((tool) => tool.name));
+
+  registeredControllers.forEach((controller, name) => {
+    if (!desiredNames.has(name)) {
+      controller.abort();
+      registeredControllers.delete(name);
+    }
+  });
+
   await Promise.all(
     tools.map(async (tool) => {
+      if (registeredControllers.has(tool.name)) return;
       const controller = new AbortController();
       registeredControllers.set(tool.name, controller);
       await context.registerTool(tool, { signal: controller.signal });
@@ -638,44 +635,40 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
   ];
 
   if (state.phase === "active" || state.phase === "paused") {
-    if (Object.values(state.resources).some((count) => count > 0)) {
-      tools.push({
-        name: "dispatch_response_unit",
-        title: "Dispatch response unit",
-        description: "Send one available ambulance, rescue bus, drone, or fire engine to a district. Consumes that unit.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            unit: { type: "string", enum: ["ambulance", "rescue_bus", "drone", "fire_engine"] },
-            district: districtProperty(),
-          },
-          required: ["unit", "district"],
-          additionalProperties: false,
+    tools.push({
+      name: "dispatch_response_unit",
+      title: "Dispatch response unit",
+      description: "Send one available ambulance, rescue bus, drone, or fire engine to a district. Consumes that unit.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          unit: { type: "string", enum: ["ambulance", "rescue_bus", "drone", "fire_engine"] },
+          district: districtProperty(),
         },
-        execute: (input) => {
-          const unit = parseUnit(input.unit);
-          const district = parseDistrict(input.district);
-          const result = simulation.dispatchUnit(unit, district);
-          if (result.ok) city.launchUnit(unit, district);
-          return result;
-        },
-      });
-    }
+        required: ["unit", "district"],
+        additionalProperties: false,
+      },
+      execute: (input) => {
+        const unit = parseUnit(input.unit);
+        const district = parseDistrict(input.district);
+        const result = simulation.dispatchUnit(unit, district);
+        if (result.ok) city.launchUnit(unit, district);
+        return result;
+      },
+    });
 
-    if (state.resources.drone > 0) {
-      tools.push({
-        name: "deploy_recon_drone",
-        title: "Deploy reconnaissance drone",
-        description: "Deploy a drone for live hazard mapping when roads are blocked or district conditions are unknown.",
-        inputSchema: districtSchema(),
-        execute: (input) => {
-          const district = parseDistrict(input.district);
-          const result = simulation.deployDrone(district);
-          if (result.ok) city.launchUnit("drone", district);
-          return result;
-        },
-      });
-    }
+    tools.push({
+      name: "deploy_recon_drone",
+      title: "Deploy reconnaissance drone",
+      description: "Deploy a drone for live hazard mapping when roads are blocked or district conditions are unknown.",
+      inputSchema: districtSchema(),
+      execute: (input) => {
+        const district = parseDistrict(input.district);
+        const result = simulation.deployDrone(district);
+        if (result.ok) city.launchUnit("drone", district);
+        return result;
+      },
+    });
 
     const scanned = districtIds.filter((id) => state.districts[id].scanned);
     if (scanned.length >= 2) {
@@ -718,7 +711,7 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
     const evacuationDistricts = scanned.filter(
       (id) => state.districts[id].evacuated < state.districts[id].population,
     );
-    if (evacuationDistricts.length > 0 && !state.approval) {
+    if (evacuationDistricts.length > 0) {
       tools.push({
         name: "request_district_evacuation",
         title: "Request district evacuation",
@@ -813,4 +806,3 @@ function showToast(message: string, isError = false): void {
 }
 
 window.addEventListener("beforeunload", () => city.destroy());
-
