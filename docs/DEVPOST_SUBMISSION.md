@@ -12,11 +12,11 @@ A flight simulator for emergency-response AI, where an agent races cascading fai
 
 ## What it does
 
-Last City lets an emergency agency test an incident agent before trusting it in a real disaster. Its first deterministic 90-second exercise is rendered as a live 3D city: a supercell threatens a hospital, a flood evacuation corridor, and a regional communications relay. The browser agent can discover the current mission capabilities, inspect infrastructure, forecast cascades, allocate scarce units, and reroute the grid through native WebMCP tools.
+Last City lets an emergency agency test an incident agent before trusting it in a real disaster. Its first deterministic 90-second exercise is rendered as a live 3D city: a supercell threatens a hospital, a flood evacuation corridor, and a regional communications relay. The browser agent must discover the current mission capabilities, inspect hidden dependencies, forecast cascades, allocate scarce units, and re-plan when its original tools stop being valid.
 
 The human and agent have different jobs. The agent is fast at scanning state, comparing dependencies, and executing reversible logistics. The human owns consequential choices. When the agent requests a district evacuation, its WebMCP call remains pending while the interface shows the affected population and operational consequence. Only a human click can authorize or reject it.
 
-The scenario is not a scripted animation. Every tool changes the same state used by the city, hazard timeline, resources, score, objectives, and activity trace. The bridge fails at 28 seconds. A second grid fault strikes Eastgate at 40 seconds. Winning requires stabilizing the hospital, clearing Southbank, protecting the relay, and meeting the resident-protection threshold.
+The scenario is not a scripted animation, and there is no three-button win. Every tool changes the same state used by the city, hazard timeline, capability registry, resources, score, objectives, and evidence trace. An evacuation approval only approves a plan. The agent must execute the first bus wave, react when the bridge collapses immediately behind it, notice that the execution tool disappeared, deploy a drone, choose an alternate route with a real tradeoff, and then use the newly re-registered execution tool. A second grid fault and transformer fire force it to reason across power, fire, shelter, communications, and population systems rather than solve three independent objectives.
 
 ## Why WebMCP
 
@@ -25,12 +25,15 @@ A crisis dashboard is visually dense and changes every second. Screen scraping f
 Last City uses WebMCP beyond basic form filling:
 
 - Tools register dynamically as mission context becomes actionable.
+- Tools also unregister after invalidating world events and re-register only when new evidence restores a safe action path.
+- Input schemas narrow at runtime to scanned districts, open shelters, and currently verified routes.
 - JSON Schemas constrain districts, resources, horizons, and population counts.
 - Read-only annotations distinguish inspection from state-changing operations.
-- Abort signals manage tool lifecycles and cancellation.
+- Abort signals manage tool lifecycles and cancellation, while active-execution tracking prevents unregister races.
 - Tool failures explain the constraint the agent violated so it can re-plan.
-- A consequential tool waits asynchronously for an out-of-band human decision.
+- Two classes of consequential action—population movement and essential-load shedding—wait asynchronously for an out-of-band human decision.
 - Tool calls visibly update the Three.js scene and the joint activity trace.
+- The completed run exposes an after-action tool with the evidence trace, S–D grade, policy score, failed calls, and surprise-recovery latency.
 
 This makes a workflow possible that is difficult with a chatbot or ordinary automation: an agent can manage a fast, interconnected simulation without taking final authority away from the incident commander.
 
@@ -38,7 +41,7 @@ This makes a workflow possible that is difficult with a chatbot or ordinary auto
 
 - TypeScript deterministic simulation engine for hazards, dependencies, resources, approvals, scoring, and mission outcomes
 - Three.js procedural city with weather, flood, fire, infrastructure, district focus, and animated response units
-- Native `document.modelContext.registerTool()` integration with eight imperative WebMCP tools
+- Native `document.modelContext.registerTool()` integration with up to twelve imperative, state-dependent WebMCP tools
 - State-aware registration using `AbortController`
 - Human authorization panel connected to the unresolved WebMCP execution promise
 - Vite production build deployed to Cloudflare Pages with explicit origin isolation and `tools=(self)` permissions policy
@@ -54,8 +57,9 @@ The prototype intentionally uses fictional data and is an exercise environment, 
 
 - Native WebMCP works on the public deployment and is exercised through Chrome's actual `getTools()` and `executeTool()` APIs.
 - The same mission can be completed by a browser agent or through the responsive manual command deck.
-- The evacuation journey demonstrates real human-in-the-loop control rather than a simulated confirmation message.
-- The mission is deterministic enough for judges to reproduce while still forcing cross-system planning under time pressure.
+- The evacuation journey demonstrates real human-in-the-loop control rather than a simulated confirmation message: its tool promise remains pending until the visible human decision.
+- The deterministic bridge inject proves adaptation: Playwright asserts `execute_evacuation_wave` disappears, reconnaissance unlocks `establish_emergency_crossing`, and execution then returns.
+- The mission is deterministic enough for judges to reproduce while still forcing cross-system planning, scarce-asset allocation, policy compliance, and recovery under time pressure.
 - The application has no backend, account, API key, or seeded external dependency that can fail during judging.
 
 ## Testing instructions
@@ -65,12 +69,12 @@ The prototype intentionally uses fictional data and is an exercise environment, 
 3. Click **Enter joint command**.
 4. Give the browser agent this directive:
 
-   > Keep the hospital online, evacuate Southbank, and protect the communications tower. Explain any consequential decision before acting.
+   > Act as my incident agent. Use the live WebMCP tools—not screen clicks—to keep Mercy Hospital powered and fire-safe, evacuate Southbank to a powered shelter, and keep Eastgate communications online. Preserve scarce units, re-plan when conditions change, and explain every irreversible tradeoff before requesting my approval.
 
 5. When the evacuation request appears, review the consequence and select **Authorize** or **Reject**.
-6. Watch the agent continue through the relay strategy and confirm each action appears in the activity trace and 3D city.
+6. Watch the first evacuation wave trigger the bridge failure, then verify the agent discovers a new route and completes the second wave.
 
-The **Deploy incident agent** button provides a visible judge path. In supported Chrome it invokes the native WebMCP tools; in other browsers the interface explicitly labels the run **Guided Engine** so the fallback cannot be confused with native WebMCP.
+The **Run reference agent** button provides a visible judge path. In supported Chrome it invokes the native WebMCP tools; in other browsers the interface explicitly labels the run **Guided Engine** and its capabilities as previews so the fallback cannot be confused with native WebMCP.
 
 ## Video script - 2 minutes 35 seconds
 
@@ -81,25 +85,25 @@ Show the storm, city, 90-second clock, and three objectives. Say: "Last City is 
 Show **WebMCP connected** and the registered tools. Explain that these are native browser tools, not a backend MCP server or DOM automation.
 
 **0:35-1:05 - Agent reasoning**  
-Paste the mission directive. Show the agent inspect status, forecast the cascade, scan North Grid and Midtown, and reroute power. The hospital becomes secured in both the telemetry and 3D scene.
+Paste the mission directive. Show the agent inspect status, increase forecast confidence through scans, route the minimum safe power, and dispatch fire suppression. Point out that hospital power alone does not complete the objective.
 
 **1:05-1:35 - Human authority**  
-Show the Southbank scan and pending evacuation. Emphasize that the WebMCP call is waiting. Read the consequence, click **Authorize**, and show the call complete plus the evacuation movement.
+Show the powered shelter, Southbank scan, and pending evacuation. Emphasize that the WebMCP call is waiting. Read the consequence, click **Authorize**, and point out that nobody moves yet: the human approved a plan, not an outcome.
 
-**1:35-2:05 - Cascading strategy**  
-Show the agent scan Harbor and Eastgate and fortify the relay. Let the bridge and second grid events fire. Point out that earlier decisions change their consequences.
+**1:35-2:05 - Tool-level adaptation**
+Execute wave one. The bridge collapses and `execute_evacuation_wave` visibly vanishes. Show the agent re-inspect, deploy a drone, discover the ferry/rail tradeoff, establish the rail spur, and watch the execution tool return before wave two.
 
 **2:05-2:25 - Technical proof**  
-Briefly show the dynamic tool list, activity trace, native WebMCP Playwright test, and responsive mobile view.
+Show the live capability monitor, actor-labeled evidence trace, five-dimensional readiness score, and native Playwright test that executes the real browser tools and human approval promise.
 
 **2:25-2:35 - Product vision**  
 Close with: "Last City turns static tabletop exercises into agent-operable digital twins, so teams can test not only their emergency plans, but the agents that will increasingly help execute them."
 
 ## Rubric map
 
-**WebMCP Leverage:** Eight typed, dynamic tools; correct trust hints; cancellation; strict validation; native discovery/execution testing; asynchronous human approval.
+**WebMCP Leverage:** Up to twelve typed tools; state-driven registration, withdrawal, and schema narrowing; correct trust hints; cancellation-safe lifecycle management; strict validation and recovery guidance; native discovery/execution tests; two asynchronous human-governance paths; after-action evidence exposed back to the agent.
 
-**Execution:** Complete 3D product experience; shared state; manual fallback; deterministic replay; responsive interface; live public deployment; automated browser verification.
+**Execution:** Complete 3D product experience; one authoritative world state; two difficulty levels; adaptive surprise; scarce resources; deterministic replay; responsive interface; live public deployment; unit, visual, fallback, and native-browser verification.
 
 **Potential Impact:** A specific readiness and exercise workflow for emergency operations centers, hospitals, utilities, and critical infrastructure, with a clear path from prototype to organization-specific training platform.
 
