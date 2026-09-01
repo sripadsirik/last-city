@@ -92,10 +92,10 @@ app.innerHTML = `
       </div>
 
       <div class="system-status">
-        <div id="webmcp-status" class="status-chip">
+        <button id="webmcp-status" class="status-chip" type="button" title="Open Website Tools connection guide">
           <i data-lucide="radio"></i>
           <span>Checking WebMCP</span>
-        </div>
+        </button>
         <button id="pause-button" class="icon-button" type="button" title="Pause simulation" aria-label="Pause simulation">
           <i data-lucide="pause"></i>
         </button>
@@ -215,7 +215,7 @@ app.innerHTML = `
         <p id="directive-text">${DIRECTIVE}</p>
       </div>
       <button id="copy-directive" class="icon-button" type="button" title="Copy mission directive" aria-label="Copy mission directive"><i data-lucide="copy"></i></button>
-      <button id="demo-button" class="primary-button" type="button"><i data-lucide="play"></i><span>Run reference agent</span></button>
+      <button id="demo-button" class="primary-button" type="button"><i data-lucide="radio"></i><span>Connect AI agent</span></button>
     </footer>
 
     <section id="briefing" class="briefing-band">
@@ -233,6 +233,7 @@ app.innerHTML = `
           <span><i data-lucide="waves"></i> Southbank cleared</span>
           <span><i data-lucide="radio"></i> Relay protected</span>
         </div>
+        <div id="briefing-agent-status" class="briefing-agent-status"><i data-lucide="radio"></i><span>Open in ChatGPT Desktop to activate Website Tools</span></div>
         <button id="start-button" class="launch-button" type="button"><i data-lucide="siren"></i><span>Enter joint command</span><i data-lucide="chevron-right"></i></button>
       </div>
       <div class="briefing-signal" aria-hidden="true">
@@ -256,6 +257,27 @@ app.innerHTML = `
       <div id="score-breakdown" class="score-breakdown"></div>
       <button id="copy-report-button" class="secondary-button" type="button"><i data-lucide="copy"></i><span>Copy after-action report</span></button>
       <button id="replay-button" class="launch-button" type="button"><i data-lucide="refresh-cw"></i><span>Run another scenario</span></button>
+    </section>
+
+    <section id="connection-panel" class="connection-panel" role="dialog" aria-modal="true" aria-labelledby="connection-title" hidden>
+      <button id="close-connection" class="connection-close" type="button" aria-label="Close connection guide"><i data-lucide="x"></i></button>
+      <span class="eyebrow">WEBSITE TOOLS · NATIVE WEBMCP</span>
+      <strong id="connection-title">PUT AN AGENT IN THE COMMAND CHAIR</strong>
+      <p>This city is the interface. ChatGPT supplies the incident commander through tools registered by this page.</p>
+      <ol class="connection-steps">
+        <li><span>01</span><div><strong>Use ChatGPT Desktop</strong><p>Update to the latest app and open this URL in its integrated browser.</p></div></li>
+        <li><span>02</span><div><strong>Select GPT-5.6 Sol or Terra</strong><p>Website Tools are currently unavailable with Luna and in Enterprise or Edu workspaces.</p></div></li>
+        <li><span>03</span><div><strong>Enable Website Tools</strong><p>Settings → Browser → Permissions → Enable Website Tools, then inspect them from the browser address bar.</p></div></li>
+        <li><span>04</span><div><strong>Issue the mission</strong><p>Enter joint command, paste the directive, and retain control of every human authorization.</p></div></li>
+      </ol>
+      <div class="connection-actions">
+        <button id="copy-url-button" class="secondary-button" type="button"><i data-lucide="copy"></i><span>Copy live URL</span></button>
+        <button id="copy-connection-prompt" class="primary-button" type="button"><i data-lucide="copy"></i><span>Copy mission prompt</span></button>
+      </div>
+      <div class="reference-preview">
+        <div><strong>NO COMPATIBLE BROWSER?</strong><span>Watch the deterministic tool sequence. This is a labeled replay, not an AI run.</span></div>
+        <button id="reference-button" type="button"><i data-lucide="play"></i><span>Watch scripted benchmark</span></button>
+      </div>
     </section>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -308,6 +330,20 @@ let demoRunning = false;
 let lastActivityId = 0;
 let toolSyncTimer = 0;
 let pendingToolState: Readonly<MissionState> | null = null;
+let activeMutation: string | null = null;
+
+const TOOL_LATENCY_MS: Record<string, number> = {
+  scan_district: 900,
+  dispatch_response_unit: 2800,
+  deploy_recon_drone: 2400,
+  reroute_grid_power: 1800,
+  request_high_risk_power_diversion: 600,
+  deploy_mobile_generator: 2800,
+  open_emergency_shelter: 1700,
+  request_district_evacuation: 600,
+  execute_evacuation_wave: 3200,
+  establish_emergency_crossing: 2400,
+};
 
 simulation.subscribe((state) => {
   renderState(state);
@@ -523,7 +559,33 @@ requiredElement("copy-report-button").addEventListener("click", async () => {
   showToast("After-action report copied.");
 });
 
-requiredElement("demo-button").addEventListener("click", () => void runDemoRoute());
+requiredElement("demo-button").addEventListener("click", async () => {
+  if (document.modelContext) {
+    await navigator.clipboard.writeText(DIRECTIVE);
+    showToast("Mission copied. Ask ChatGPT to use this page's Website Tools.");
+    return;
+  }
+  requiredElement("connection-panel").hidden = false;
+});
+
+requiredElement("webmcp-status").addEventListener("click", () => {
+  requiredElement("connection-panel").hidden = false;
+});
+requiredElement("close-connection").addEventListener("click", () => {
+  requiredElement("connection-panel").hidden = true;
+});
+requiredElement("copy-url-button").addEventListener("click", async () => {
+  await navigator.clipboard.writeText("https://last-city.pages.dev");
+  showToast("Live URL copied.");
+});
+requiredElement("copy-connection-prompt").addEventListener("click", async () => {
+  await navigator.clipboard.writeText(DIRECTIVE);
+  showToast("Mission prompt copied.");
+});
+requiredElement("reference-button").addEventListener("click", () => {
+  requiredElement("connection-panel").hidden = true;
+  void runDemoRoute();
+});
 
 function executeManualCommand(command: string): void {
   let result: ActionResult;
@@ -706,9 +768,13 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
   const status = requiredElement("webmcp-status");
   if (!context) {
     status.className = "status-chip unavailable";
-    status.querySelector("span")!.textContent = "WebMCP preview off";
-    status.title = "Use Chrome 146+ with chrome://flags/#enable-webmcp-testing enabled, or ChatGPT's in-app browser.";
-    setText("agent-channel", "GUIDED ENGINE");
+    status.querySelector("span")!.textContent = "Connect Website Tools";
+    status.title = "Open the setup guide for ChatGPT Desktop Website Tools.";
+    setText("agent-channel", "BROWSER AGENT OFFLINE");
+    setText("agent-detail", "The city is ready. Connect ChatGPT Desktop to expose its native Website Tools.");
+    requiredElement("briefing-agent-status").className = "briefing-agent-status offline";
+    requiredElement("briefing-agent-status").querySelector("span")!.textContent = "Agent offline · Open connection guide";
+    requiredElement("demo-button").querySelector("span")!.textContent = "Connect AI agent";
     const previewTools = buildTools(state);
     activeToolCount = previewTools.length;
     requiredElement("tool-count").querySelector("span")!.textContent = `${activeToolCount} preview`;
@@ -717,9 +783,12 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
   }
 
   status.className = "status-chip connected";
-  status.querySelector("span")!.textContent = "WebMCP connected";
-  status.title = "Native browser tools are registered and ready.";
+  status.querySelector("span")!.textContent = "Website Tools live";
+  status.title = "Native WebMCP Website Tools are registered and ready.";
   setText("agent-channel", "NATIVE WEBMCP");
+  requiredElement("briefing-agent-status").className = "briefing-agent-status connected";
+  requiredElement("briefing-agent-status").querySelector("span")!.textContent = "Agent connected · Native Website Tools detected";
+  requiredElement("demo-button").querySelector("span")!.textContent = "Copy mission to ChatGPT";
 
   const tools = buildTools(state);
   const desiredNames = new Set(tools.map((tool) => tool.name));
@@ -754,10 +823,34 @@ function withExecutionTracking(tool: ModelContextTool): ModelContextTool {
   return {
     ...tool,
     execute: async (input, options) => {
+      const mutating = tool.annotations?.readOnlyHint !== true;
+      if (mutating && activeMutation) {
+        return {
+          ok: false,
+          message: `Command bus occupied by ${activeMutation}.`,
+          recovery: "Wait for the visible operation to complete, then inspect city status before issuing the next action.",
+        };
+      }
       activeToolExecutions.set(tool.name, (activeToolExecutions.get(tool.name) ?? 0) + 1);
+      if (mutating) {
+        activeMutation = tool.name;
+        setAgentOperation("WEBMCP OPERATION ACTIVE", `${tool.title ?? tool.name} is changing the shared city state. Command bus locked.`, "running");
+      }
       try {
-        return await tool.execute(input, options);
+        const result = await tool.execute(input, options);
+        const latency = TOOL_LATENCY_MS[tool.name] ?? 0;
+        if (latency > 0) await delay(latency);
+        if (mutating) {
+          const outcome = result && typeof result === "object" ? result as ActionResult : null;
+          setAgentOperation(
+            outcome?.ok === false ? "OPERATION REJECTED" : "OPERATION CONFIRMED",
+            outcome?.message ?? `${tool.title ?? tool.name} completed and the live capability surface was refreshed.`,
+            outcome?.ok === false ? "warning" : "complete",
+          );
+        }
+        return result;
       } finally {
+        if (mutating && activeMutation === tool.name) activeMutation = null;
         const remaining = Math.max(0, (activeToolExecutions.get(tool.name) ?? 1) - 1);
         if (remaining === 0) activeToolExecutions.delete(tool.name);
         else activeToolExecutions.set(tool.name, remaining);
