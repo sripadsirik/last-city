@@ -266,6 +266,8 @@ svg {
   font-weight: 700;
 }
 
+button.status-chip { cursor: pointer; }
+
 .status-chip svg,
 .tool-count svg {
   width: 15px;
@@ -1054,6 +1056,29 @@ svg {
   color: var(--amber);
 }
 
+.briefing-agent-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: -12px 0 18px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 200, 87, 0.28);
+  background: rgba(255, 200, 87, 0.05);
+  color: var(--amber);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.briefing-agent-status.connected {
+  border-color: rgba(99, 230, 162, 0.35);
+  background: rgba(99, 230, 162, 0.07);
+  color: var(--green);
+}
+
+.briefing-agent-status svg { width: 14px; height: 14px; }
+
 .launch-button {
   min-width: 230px;
   padding: 0 18px;
@@ -1233,6 +1258,121 @@ svg {
   cursor: pointer;
   font-size: 10px;
   font-weight: 700;
+}
+
+.connection-panel {
+  position: absolute;
+  z-index: 45;
+  top: 50%;
+  left: 50%;
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 30px;
+  border: 1px solid rgba(78, 225, 255, 0.42);
+  background:
+    linear-gradient(145deg, rgba(78, 225, 255, 0.055), transparent 48%),
+    rgba(8, 10, 13, 0.985);
+  box-shadow: 0 32px 100px rgba(0, 0, 0, 0.8), 0 0 60px rgba(78, 225, 255, 0.08);
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(24px);
+}
+
+.connection-panel > strong {
+  display: block;
+  max-width: 580px;
+  margin-top: 9px;
+  font-size: clamp(25px, 4vw, 42px);
+  line-height: 1;
+}
+
+.connection-panel > p {
+  max-width: 620px;
+  margin: 12px 0 20px;
+  color: #abb3ad;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.connection-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.connection-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 0 18px;
+  padding: 1px;
+  list-style: none;
+  background: var(--line);
+}
+
+.connection-steps li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 92px;
+  padding: 13px;
+  background: #0d1012;
+}
+
+.connection-steps li > span {
+  color: var(--cyan);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.connection-steps strong { font-size: 11px; }
+.connection-steps p { margin: 5px 0 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+
+.connection-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.connection-actions .secondary-button { margin: 0; }
+
+.reference-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+
+.reference-preview strong,
+.reference-preview span { display: block; }
+.reference-preview strong { color: var(--muted); font-size: 8px; letter-spacing: 0.07em; }
+.reference-preview span { margin-top: 3px; color: #7f8781; font-size: 9px; }
+
+.reference-preview button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+  font-size: 9px;
 }
 
 .result-stats {
@@ -1497,6 +1637,14 @@ svg {
   .difficulty-switch { grid-template-columns: 1fr; }
 
   .score-breakdown { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+  .connection-panel { padding: 24px 18px 18px; }
+  .connection-steps { grid-template-columns: 1fr; }
+  .connection-actions,
+  .reference-preview { align-items: stretch; flex-direction: column; }
+  .connection-actions .primary-button,
+  .connection-actions .secondary-button,
+  .reference-preview button { width: 100%; }
 
   .rail-section {
     padding: 10px;
