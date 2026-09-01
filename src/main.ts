@@ -305,12 +305,25 @@ let lastTimestamp = performance.now();
 let toastTimer = 0;
 let demoRunning = false;
 let lastActivityId = 0;
+let toolSyncTimer = 0;
+let pendingToolState: Readonly<MissionState> | null = null;
 
 simulation.subscribe((state) => {
   renderState(state);
   city.sync(state);
-  window.queueMicrotask(() => void synchronizeTools(state));
+  scheduleToolSynchronization(state);
 });
+
+function scheduleToolSynchronization(state: Readonly<MissionState>): void {
+  pendingToolState = state;
+  if (toolSyncTimer) return;
+  toolSyncTimer = window.setTimeout(() => {
+    toolSyncTimer = 0;
+    const latest = pendingToolState;
+    pendingToolState = null;
+    if (latest) void synchronizeTools(latest);
+  }, 0);
+}
 
 function requiredElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
