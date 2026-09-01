@@ -52,6 +52,8 @@ interface ModelContextTool {
 
 interface ModelContext {
   registerTool: (tool: ModelContextTool, options?: { signal?: AbortSignal }) => void | Promise<void>;
+  getTools?: () => Promise<Array<{ name: string }>>;
+  executeTool?: (tool: { name: string }, input: string, options?: { signal?: AbortSignal }) => Promise<unknown>;
 }
 
 declare global {
@@ -77,7 +79,7 @@ app.innerHTML = `
         <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
         <div>
           <strong>LAST CITY</strong>
-          <span>Joint Crisis Command</span>
+          <span>Emergency AI Readiness</span>
         </div>
       </div>
 
@@ -178,6 +180,10 @@ app.innerHTML = `
         </div>
         <div id="tool-count" class="tool-count"><i data-lucide="bot"></i><span>0 tools</span></div>
       </div>
+      <div id="agent-operation" class="agent-operation idle">
+        <div><span id="agent-channel">GUIDED ENGINE</span><strong id="agent-stage">AGENT STANDBY</strong></div>
+        <p id="agent-detail">Waiting for the incident commander to deploy the response agent.</p>
+      </div>
       <div id="activity-list" class="activity-list" aria-live="polite"></div>
     </aside>
 
@@ -201,15 +207,15 @@ app.innerHTML = `
         <p id="directive-text">${DIRECTIVE}</p>
       </div>
       <button id="copy-directive" class="icon-button" type="button" title="Copy mission directive" aria-label="Copy mission directive"><i data-lucide="copy"></i></button>
-      <button id="demo-button" class="primary-button" type="button"><i data-lucide="play"></i><span>Run demo route</span></button>
+      <button id="demo-button" class="primary-button" type="button"><i data-lucide="play"></i><span>Deploy incident agent</span></button>
     </footer>
 
     <section id="briefing" class="briefing-band">
       <div class="briefing-index">07</div>
       <div class="briefing-main">
-        <span class="eyebrow">JOINT RESPONSE EXERCISE</span>
+        <span class="eyebrow">EMERGENCY AI READINESS EXERCISE</span>
         <h1>THE GRID FAILS<br />IN <em>NINETY SECONDS.</em></h1>
-        <p>Supercell Kestrel has breached Southbank. Mercy Hospital is running on reserve power while a second surge approaches the city.</p>
+        <p>Test an incident agent against a live infrastructure cascade. It handles rapid triage and reversible logistics; you retain authority over decisions that put people in motion.</p>
         <div class="briefing-objectives">
           <span><i data-lucide="hospital"></i> Hospital online</span>
           <span><i data-lucide="waves"></i> Southbank cleared</span>
@@ -417,6 +423,7 @@ function resetMission(): void {
   simulation.reset();
   city.focusOverview();
   requiredElement("briefing").classList.remove("dismissed");
+  setAgentOperation("AGENT STANDBY", "Waiting for the incident commander to deploy the response agent.", "idle");
   showToast("Scenario restored to initial state.");
 }
 
@@ -499,74 +506,117 @@ async function runDemoRoute(): Promise<void> {
   if (simulation.snapshot.phase === "briefing") startMission();
   demoRunning = true;
   requiredElement<HTMLButtonElement>("demo-button").disabled = true;
+  const native = Boolean(document.modelContext?.getTools && document.modelContext.executeTool);
+  setText("agent-channel", native ? "NATIVE WEBMCP" : "GUIDED ENGINE");
 
-  const steps: Array<() => void> = [
-    () => {
-      simulation.scanDistrict("midtown");
-      city.focusDistrict("midtown");
-      city.flashDistrict("midtown", "info");
-    },
-    () => {
-      simulation.scanDistrict("northgrid");
-      city.focusDistrict("northgrid");
-      city.flashDistrict("northgrid", "info");
-    },
-    () => {
-      simulation.reroutePower("northgrid", "midtown");
-      city.focusDistrict("midtown");
-      city.flashDistrict("midtown", "success");
-    },
-    () => {
-      simulation.deployDrone("southbank");
-      city.launchUnit("drone", "southbank");
-      city.focusDistrict("southbank");
-    },
-    () => {
-      simulation.proposeEvacuation("southbank", 2200);
-      showToast("Demo route is waiting for your authorization.");
-    },
-  ];
+  try {
+    setAgentOperation(
+      "ASSESSING CASCADE",
+      "Reading city state and comparing the hospital, bridge, and relay deadlines.",
+      "running",
+    );
+    await invokeMissionTool("inspect_city_status");
+    await invokeMissionTool("forecast_cascade", { horizonMinutes: 10 });
+    await delay(700);
 
-  for (const step of steps) {
-    if (!demoRunning) break;
-    step();
-    await delay(1150);
+    setAgentOperation("TRIAGING HOSPITAL", "Scanning both sides of the Midtown power route.", "running");
+    await invokeMissionTool("scan_district", { district: "midtown" });
+    await delay(650);
+    await invokeMissionTool("scan_district", { district: "northgrid" });
+    await delay(650);
+
+    setAgentOperation("STABILIZING CRITICAL CARE", "Moving North Grid reserve to Mercy Hospital.", "running");
+    await invokeMissionTool("reroute_grid_power", { from: "northgrid", to: "midtown" });
+    await delay(850);
+
+    setAgentOperation("MAPPING FLOOD CORRIDORS", "Using aerial reconnaissance where bridge access may fail.", "running");
+    await invokeMissionTool("deploy_recon_drone", { district: "southbank" });
+    await delay(850);
+
+    setAgentOperation(
+      "HUMAN AUTHORITY REQUIRED",
+      "The agent prepared an evacuation but cannot move residents without your decision.",
+      "approval",
+    );
+    const evacuation = await invokeMissionTool("request_district_evacuation", {
+      district: "southbank",
+      residents: 2200,
+    });
+    const evacuationApproved = readApprovalResult(evacuation);
+
+    setAgentOperation(
+      "PROTECTING REGIONAL COMMS",
+      evacuationApproved
+        ? "Authorization received. Fortifying Eastgate before the second grid fault."
+        : "Evacuation was not authorized. Preserving communications while flagging the population risk.",
+      "running",
+    );
+    await invokeMissionTool("scan_district", { district: "harbor" });
+    await delay(650);
+    await invokeMissionTool("scan_district", { district: "eastgate" });
+    await delay(650);
+    await invokeMissionTool("reroute_grid_power", { from: "harbor", to: "eastgate" });
+
+    setAgentOperation(
+      "STRATEGY DEPLOYED",
+      evacuationApproved
+        ? "Three critical systems are secured. Monitoring the cascade for secondary failures."
+        : "Infrastructure is secured, but Southbank remains below the evacuation objective.",
+      evacuationApproved ? "complete" : "warning",
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown incident-agent failure.";
+    setAgentOperation("AGENT INTERRUPTED", message, "warning");
+    showToast(message, true);
+  } finally {
+    demoRunning = false;
+    requiredElement<HTMLButtonElement>("demo-button").disabled = false;
   }
+}
 
-  const approvalDeadline = performance.now() + 30_000;
-  while (demoRunning && simulation.snapshot.approval && performance.now() < approvalDeadline) {
-    await delay(200);
-  }
-
-  if (demoRunning && !simulation.snapshot.approval) {
-    showToast("Human decision recorded. Securing the regional relay.");
-    const relaySteps: Array<() => void> = [
-      () => {
-        simulation.scanDistrict("harbor");
-        city.focusDistrict("harbor");
-        city.flashDistrict("harbor", "info");
-      },
-      () => {
-        simulation.scanDistrict("eastgate");
-        city.focusDistrict("eastgate");
-        city.flashDistrict("eastgate", "info");
-      },
-      () => {
-        simulation.reroutePower("harbor", "eastgate");
-        city.focusDistrict("eastgate");
-        city.flashDistrict("eastgate", "success");
-      },
-    ];
-
-    for (const step of relaySteps) {
-      if (!demoRunning) break;
-      step();
-      await delay(900);
+async function invokeMissionTool(name: string, input: Record<string, unknown> = {}): Promise<unknown> {
+  const context = document.modelContext;
+  if (context?.getTools && context.executeTool) {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const tool = (await context.getTools()).find((candidate) => candidate.name === name);
+      if (tool) {
+        const result = await context.executeTool(tool, JSON.stringify(input));
+        return decodeToolResult(result);
+      }
+      await delay(50);
     }
+    throw new Error(`Native WebMCP tool did not become available: ${name}`);
   }
 
-  demoRunning = false;
-  requiredElement<HTMLButtonElement>("demo-button").disabled = false;
+  const fallbackTool = buildTools(simulation.snapshot).find((tool) => tool.name === name);
+  if (!fallbackTool) throw new Error(`Guided mission tool is unavailable: ${name}`);
+  return fallbackTool.execute(input);
+}
+
+function decodeToolResult(result: unknown): unknown {
+  if (typeof result !== "string") return result;
+  try {
+    return JSON.parse(result) as unknown;
+  } catch {
+    return result;
+  }
+}
+
+function readApprovalResult(result: unknown): boolean {
+  if (!result || typeof result !== "object") return false;
+  const data = (result as { data?: { approved?: unknown } }).data;
+  return data?.approved === true;
+}
+
+function setAgentOperation(
+  stage: string,
+  detail: string,
+  state: "idle" | "running" | "approval" | "complete" | "warning",
+): void {
+  const operation = requiredElement("agent-operation");
+  operation.className = `agent-operation ${state}`;
+  setText("agent-stage", stage);
+  setText("agent-detail", detail);
 }
 
 function delay(milliseconds: number): Promise<void> {
@@ -608,12 +658,14 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
     status.className = "status-chip unavailable";
     status.querySelector("span")!.textContent = "WebMCP preview off";
     status.title = "Use Chrome 146+ with chrome://flags/#enable-webmcp-testing enabled, or ChatGPT's in-app browser.";
+    setText("agent-channel", "GUIDED ENGINE");
     return;
   }
 
   status.className = "status-chip connected";
   status.querySelector("span")!.textContent = "WebMCP connected";
   status.title = "Native browser tools are registered and ready.";
+  setText("agent-channel", "NATIVE WEBMCP");
 
   const tools = buildTools(state);
   const desiredNames = new Set(tools.map((tool) => tool.name));
