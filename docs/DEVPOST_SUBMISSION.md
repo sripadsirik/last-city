@@ -8,11 +8,11 @@
 
 ## Tagline
 
-A living crisis digital twin where a browser agent races cascading failures and a human commander controls the decisions that put people at risk.
+A flight simulator for emergency-response AI, where an agent races cascading failures and a human commander controls the decisions that put people at risk.
 
 ## What it does
 
-Last City is a deterministic 90-second emergency operations exercise rendered as a live 3D city. A supercell threatens a hospital, a flood evacuation corridor, and a regional communications relay. The browser agent can discover the current mission capabilities, inspect infrastructure, forecast cascades, allocate scarce units, and reroute the grid through native WebMCP tools.
+Last City lets an emergency agency test an incident agent before trusting it in a real disaster. Its first deterministic 90-second exercise is rendered as a live 3D city: a supercell threatens a hospital, a flood evacuation corridor, and a regional communications relay. The browser agent can discover the current mission capabilities, inspect infrastructure, forecast cascades, allocate scarce units, and reroute the grid through native WebMCP tools.
 
 The human and agent have different jobs. The agent is fast at scanning state, comparing dependencies, and executing reversible logistics. The human owns consequential choices. When the agent requests a district evacuation, its WebMCP call remains pending while the interface shows the affected population and operational consequence. Only a human click can authorize or reject it.
 
@@ -70,12 +70,12 @@ The prototype intentionally uses fictional data and is an exercise environment, 
 5. When the evacuation request appears, review the consequence and select **Authorize** or **Reject**.
 6. Watch the agent continue through the relay strategy and confirm each action appears in the activity trace and 3D city.
 
-The **Run demo route** button provides the same judge path without an attached agent.
+The **Deploy incident agent** button provides a visible judge path. In supported Chrome it invokes the native WebMCP tools; in other browsers the interface explicitly labels the run **Guided Engine** so the fallback cannot be confused with native WebMCP.
 
 ## Video script - 2 minutes 35 seconds
 
 **0:00-0:15 - Hook**  
-Show the storm, city, 90-second clock, and three objectives. Say: "Most agents automate a page. Last City asks whether a human and agent can command a living system together."
+Show the storm, city, 90-second clock, and three objectives. Say: "Last City is a flight simulator for emergency-response AI. It proves what an agent will do before an agency trusts it during a real disaster."
 
 **0:15-0:35 - Native WebMCP**  
 Show **WebMCP connected** and the registered tools. Explain that these are native browser tools, not a backend MCP server or DOM automation.
