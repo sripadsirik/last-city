@@ -73,7 +73,7 @@ test("deploys the visible incident agent when native WebMCP is unavailable", asy
   await page.goto("/");
   await expect(page.locator("#webmcp-status")).toContainText("WebMCP preview off");
   await page.getByRole("button", { name: "Enter joint command" }).click();
-  await page.getByRole("button", { name: "Deploy incident agent" }).click();
+  await page.getByRole("button", { name: "Run reference agent" }).click();
 
   await expect(page.locator("#agent-channel")).toHaveText("GUIDED ENGINE");
   await expect(page.locator("#agent-stage")).toHaveText("HUMAN AUTHORITY REQUIRED", { timeout: 15_000 });
