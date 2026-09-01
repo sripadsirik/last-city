@@ -25,18 +25,20 @@ This is grounded in an established training workflow: [FEMA describes games as a
 - An authorized plan is not a completed outcome: the agent must execute evacuation waves and re-plan after a deterministic bridge collapse.
 - Unsafe power transfers are blocked behind a separate human authorization call with an explicit blast-radius preview.
 - Every run ends with an S–D readiness grade across lives, infrastructure, adaptation, governance, and efficiency.
-- The visible Guided Engine preserves the demo in browsers without WebMCP while clearly labeling its preview capabilities.
+- The primary **Connect AI agent** path explains the real ChatGPT Website Tools setup; a separately labeled scripted benchmark preserves a visual fallback without pretending to be an AI run.
 
-## Enable WebMCP
+## Enable Website Tools (WebMCP)
 
-ChatGPT's in-app browser supports WebMCP directly. For local Google Chrome testing:
+Use the latest ChatGPT desktop app with its integrated browser:
 
-1. Use Chrome 146 or newer.
-2. Open `chrome://flags/#enable-webmcp-testing`.
-3. Set **WebMCP for testing** to **Enabled** and relaunch Chrome.
-4. Open the simulation and confirm the top-right status reads **WebMCP connected**.
+1. Select **GPT-5.6 Sol** or **GPT-5.6 Terra**. Website Tools are not currently available with Luna or in Enterprise/Edu workspaces.
+2. Open **Settings → Browser → Permissions** and enable **Website Tools**.
+3. Open the simulation in ChatGPT's integrated browser and confirm the top-right status reads **Website Tools live**.
+4. Inspect the registered tools from the browser address bar, then give ChatGPT the suggested mission.
 
-Browsers without WebMCP display **WebMCP preview off**. They can still run the same mission through the visible **Guided Engine**, but that fallback is clearly labeled and does not claim native browser-tool execution.
+The **Connect AI agent** button opens these instructions and can copy both the live URL and mission prompt. Ordinary browsers display **Connect Website Tools** because they cannot expose ChatGPT's agent runtime. A **Watch scripted benchmark** fallback remains available inside the guide, but is explicitly labeled as a replay rather than an AI run.
+
+For automated native API testing, the repository's Playwright configuration launches Chrome with the WebMCP testing feature enabled.
 
 ## Run locally
 
@@ -66,7 +68,7 @@ A strong route still requires observing the live state after every major action:
 9. Observe `execute_evacuation_wave` reappear and complete the remaining movement.
 10. Re-inspect city status and monitor the relay fault, storm surge, and aftershock until scoring.
 
-The **Run reference agent** button demonstrates this sequence, publishes each stage in the activity rail, pauses for the real human decision, and adapts to the injected bridge failure. In a WebMCP-capable Chrome session it invokes the native registered tools; elsewhere it uses the clearly labeled Guided Engine fallback.
+The intended experience is to let ChatGPT discover and execute this sequence through Website Tools. The visible connection guide contains a separately labeled scripted benchmark for reviewers who are not using ChatGPT Desktop; it publishes the same stages in the activity rail, pauses for the human decision, and adapts to the injected bridge failure without claiming to be a live AI agent.
 
 ## WebMCP tools
 
@@ -86,7 +88,7 @@ The **Run reference agent** button demonstrates this sequence, publishes each st
 | `establish_emergency_crossing` | Choose a post-collapse route with explicit operational tradeoffs |
 | `export_after_action_report` | Expose the completed evidence trace and score to the agent |
 
-Tools use JSON Schema inputs and runtime validation. Registrations are managed with `AbortController`; active executions are tracked so a capability can disappear without racing its in-flight result. Tool schemas narrow to the currently valid districts, shelters, and routes.
+Tools use JSON Schema inputs and runtime validation. Registrations are managed with `AbortController`; active executions are tracked so a capability can disappear without racing its in-flight result. Tool schemas narrow to the currently valid districts, shelters, and routes. Mutating operations occupy a visible command bus and remain pending for operational latency, preventing an agent from issuing physically impossible simultaneous actions or winning at T+00.
 
 ## Architecture
 
