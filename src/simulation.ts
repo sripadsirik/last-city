@@ -260,7 +260,7 @@ export class CrisisSimulation {
     if (districtId !== "midtown" && districtId !== "eastgate") return this.fail("The generator connection kit is compatible only with Mercy Hospital or the Eastgate relay.");
     this.state.resources.mobile_generator = 0; this.state.generatorSite = districtId; target.power = Math.min(100, target.power + 24);
     if (districtId === "midtown") { this.state.hospitalStabilized = true; this.state.hospitalBattery = Math.max(82, this.state.hospitalBattery); this.protectLives(1800); }
-    else { this.state.communicationsProtected = true; this.protectLives(900); }
+    else { this.state.communicationsProtected = true; }
     this.state.gridStability = Math.min(100, this.state.gridStability + 8);
     this.log("success", "AGENT", `Mobile generator committed to ${target.name}`, "A scarce resilience asset is now locked for the remainder of the exercise."); this.publish();
     return this.succeed(`Mobile generator connected in ${target.name}.`, { generatorSite: districtId, remaining: 0 });
