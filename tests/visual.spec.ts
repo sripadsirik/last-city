@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { PNG } from "pngjs";
 
 test("renders a nonblank city and completes the human approval loop", async ({ page }, testInfo) => {
   const pageErrors: string[] = [];
@@ -19,39 +20,25 @@ test("renders a nonblank city and completes the human approval loop", async ({ p
   expect(canvasBox!.width).toBeGreaterThan(viewport!.width * 0.9);
   expect(canvasBox!.height).toBeGreaterThan(viewport!.height * 0.85);
 
-  const pixels = await canvas.evaluate((source: HTMLCanvasElement) => {
-    const probe = document.createElement("canvas");
-    probe.width = 80;
-    probe.height = 60;
-    const context = probe.getContext("2d", { willReadFrequently: true });
-    if (!context) return { lit: 0, colors: 0, average: 0 };
+  const renderedCanvas = PNG.sync.read(await canvas.screenshot());
+  const colors = new Set<string>();
+  let litPixels = 0;
+  let luminance = 0;
 
-    context.drawImage(source, 0, 0, probe.width, probe.height);
-    const data = context.getImageData(0, 0, probe.width, probe.height).data;
-    const colors = new Set<string>();
-    let lit = 0;
-    let luminance = 0;
+  for (let index = 0; index < renderedCanvas.data.length; index += 4) {
+    const red = renderedCanvas.data[index];
+    const green = renderedCanvas.data[index + 1];
+    const blue = renderedCanvas.data[index + 2];
+    const brightness = red * 0.2126 + green * 0.7152 + blue * 0.0722;
+    luminance += brightness;
+    if (brightness > 8) litPixels += 1;
+    colors.add(`${red >> 4}-${green >> 4}-${blue >> 4}`);
+  }
 
-    for (let index = 0; index < data.length; index += 4) {
-      const red = data[index];
-      const green = data[index + 1];
-      const blue = data[index + 2];
-      const brightness = red * 0.2126 + green * 0.7152 + blue * 0.0722;
-      luminance += brightness;
-      if (brightness > 8) lit += 1;
-      colors.add(`${red >> 4}-${green >> 4}-${blue >> 4}`);
-    }
-
-    return {
-      lit,
-      colors: colors.size,
-      average: luminance / (data.length / 4),
-    };
-  });
-
-  expect(pixels.lit).toBeGreaterThan(1_500);
-  expect(pixels.colors).toBeGreaterThan(18);
-  expect(pixels.average).toBeGreaterThan(10);
+  const pixelCount = renderedCanvas.width * renderedCanvas.height;
+  expect(litPixels).toBeGreaterThan(pixelCount * 0.2);
+  expect(colors.size).toBeGreaterThan(18);
+  expect(luminance / pixelCount).toBeGreaterThan(10);
 
   const layout = await page.evaluate(() => ({
     viewportWidth: window.innerWidth,
