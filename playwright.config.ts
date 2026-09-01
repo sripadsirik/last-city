@@ -15,14 +15,27 @@ export default defineConfig({
   projects: [
     {
       name: "desktop",
+      testMatch: /visual\.spec\.ts/,
       use: { viewport: { width: 1440, height: 900 } },
     },
     {
       name: "mobile",
+      testMatch: /visual\.spec\.ts/,
       use: {
         viewport: { width: 390, height: 844 },
         hasTouch: true,
         isMobile: true,
+      },
+    },
+    {
+      name: "native-webmcp",
+      testMatch: /webmcp\.spec\.ts/,
+      use: {
+        channel: "chrome",
+        viewport: { width: 1440, height: 900 },
+        launchOptions: {
+          args: ["--enable-features=WebMCPTesting"],
+        },
       },
     },
   ],
