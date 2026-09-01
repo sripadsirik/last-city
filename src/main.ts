@@ -812,6 +812,10 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
     },
   ];
 
+  if (state.phase === "success" || state.phase === "failure") {
+    tools.splice(1);
+  }
+
   const operational = state.phase === "active" || state.phase === "paused";
   if (operational) {
     tools.push({
