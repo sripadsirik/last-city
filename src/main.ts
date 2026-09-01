@@ -320,7 +320,7 @@ function renderState(state: Readonly<MissionState>): void {
 
   renderObjective("objective-hospital", state.hospitalStabilized);
   renderObjective("objective-southbank", state.districts.southbank.evacuated >= 1800);
-  renderObjective("objective-comms", state.communicationsOnline);
+  renderObjective("objective-comms", state.communicationsOnline && state.communicationsProtected);
   renderActivity(state);
   renderApproval(state);
   renderPhase(state);
@@ -380,7 +380,7 @@ function renderPhase(state: Readonly<MissionState>): void {
   const completed = [
     state.hospitalStabilized,
     state.districts.southbank.evacuated >= 1800,
-    state.communicationsOnline,
+    state.communicationsOnline && state.communicationsProtected,
   ].filter(Boolean).length;
   setText("result-eyebrow", state.phase === "success" ? "MISSION COMPLETE" : "MISSION FAILURE");
   setText("result-title", state.phase === "success" ? "CRISIS CONTAINED" : "CITY SYSTEMS LOST");
@@ -610,7 +610,6 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
       title: "Scan a district",
       description: "Reveal power, flood, fire, access, population, shelter, and evacuation conditions for one city district.",
       inputSchema: districtSchema(),
-      annotations: { readOnlyHint: true },
       execute: (input) => {
         const district = parseDistrict(input.district);
         const result = simulation.scanDistrict(district);
@@ -625,7 +624,14 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
       description: "Forecast near-term infrastructure failures and identify the city systems at highest risk.",
       inputSchema: {
         type: "object",
-        properties: { horizonMinutes: { type: "integer", minimum: 1, maximum: 30 } },
+        properties: {
+          horizonMinutes: {
+            type: "integer",
+            minimum: 1,
+            maximum: 30,
+            description: "How many simulated minutes ahead to evaluate for cascading failures.",
+          },
+        },
         required: ["horizonMinutes"],
         additionalProperties: false,
       },
@@ -642,8 +648,12 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
       inputSchema: {
         type: "object",
         properties: {
-          unit: { type: "string", enum: ["ambulance", "rescue_bus", "drone", "fire_engine"] },
-          district: districtProperty(),
+          unit: {
+            type: "string",
+            enum: ["ambulance", "rescue_bus", "drone", "fire_engine"],
+            description: "The scarce response unit to consume and dispatch.",
+          },
+          district: districtProperty(undefined, "District receiving the response unit."),
         },
         required: ["unit", "district"],
         additionalProperties: false,
@@ -678,7 +688,10 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
         description: "Move reserve power between two scanned districts. Protect critical systems without destabilizing the source.",
         inputSchema: {
           type: "object",
-          properties: { from: districtProperty(), to: districtProperty() },
+          properties: {
+            from: districtProperty(undefined, "Scanned district donating reserve power."),
+            to: districtProperty(undefined, "Scanned district receiving reserve power."),
+          },
           required: ["from", "to"],
           additionalProperties: false,
         },
@@ -719,8 +732,16 @@ function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
         inputSchema: {
           type: "object",
           properties: {
-            district: { type: "string", enum: evacuationDistricts },
-            residents: { type: "integer", minimum: 100, maximum: 4000 },
+            district: districtProperty(
+              evacuationDistricts,
+              "Scanned district whose remaining residents should be evacuated.",
+            ),
+            residents: {
+              type: "integer",
+              minimum: 100,
+              maximum: 4000,
+              description: "Number of residents to move through constrained evacuation corridors.",
+            },
           },
           required: ["district", "residents"],
           additionalProperties: false,
@@ -753,17 +774,22 @@ function cityStatus(): Record<string, unknown> {
     hospitalBattery: Math.round(state.hospitalBattery),
     hospitalStabilized: state.hospitalStabilized,
     communicationsOnline: state.communicationsOnline,
+    communicationsProtected: state.communicationsProtected,
+    eastgatePower: Math.round(state.districts.eastgate.power),
     resources: state.resources,
     objectives: {
       stabilizeHospital: state.hospitalStabilized,
       evacuateSouthbank: state.districts.southbank.evacuated >= 1800,
-      protectCommunications: state.communicationsOnline,
+      protectCommunications: state.communicationsOnline && state.communicationsProtected,
     },
   };
 }
 
-function districtProperty(ids: DistrictId[] = districtIds): Record<string, unknown> {
-  return { type: "string", enum: ids };
+function districtProperty(
+  ids: DistrictId[] = districtIds,
+  description = "City district identifier used by the live simulation.",
+): Record<string, unknown> {
+  return { type: "string", enum: ids, description };
 }
 
 function districtSchema(ids: DistrictId[] = districtIds): Record<string, unknown> {
