@@ -1110,16 +1110,35 @@ svg {
     bottom: 82px;
     left: 10px;
     width: auto;
-    height: 138px;
+    height: 196px;
     display: grid;
     grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr auto;
     overflow: auto;
   }
 
   .rail-heading,
-  .objectives,
-  .command-deck {
+  .objectives {
     display: none;
+  }
+
+  .command-deck {
+    display: block;
+    grid-column: 1 / -1;
+    padding: 8px;
+    border-top: 1px solid var(--line);
+  }
+
+  .command-deck .section-label {
+    display: none;
+  }
+
+  .command-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .command-grid button {
+    min-height: 38px;
   }
 
   .rail-section {
@@ -1161,7 +1180,7 @@ svg {
 
   .approval-panel {
     right: 10px;
-    bottom: 230px;
+    bottom: 288px;
     left: 10px;
     flex-wrap: wrap;
   }
@@ -1220,7 +1239,7 @@ svg {
   }
 
   .mission-rail {
-    height: 122px;
+    height: 178px;
     grid-template-columns: 1.2fr 0.8fr;
   }
 
@@ -1275,7 +1294,7 @@ svg {
   }
 
   .approval-panel {
-    bottom: 215px;
+    bottom: 270px;
     padding: 12px;
   }
 
@@ -1330,4 +1349,3 @@ svg {
     transition-duration: 0.01ms !important;
   }
 }
-
