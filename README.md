@@ -94,6 +94,9 @@ npm test -- --run
 npm run build
 npx playwright install chromium
 npm run test:browser
+
+# Run the native approval journey against production
+PLAYWRIGHT_BASE_URL=https://last-city.pages.dev npx playwright test --project=native-webmcp
 ```
 
 The suite includes seven deterministic engine tests, desktop and mobile WebGL pixel checks, a manual-command journey, and a native `document.modelContext.getTools()` / `executeTool()` mission journey.
