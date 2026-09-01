@@ -87,4 +87,6 @@ test("adapts through dynamic native WebMCP tools and a real human authorization"
   });
   await expect(page.locator("#capability-note")).toContainText("Tool names and schemas change");
   await page.screenshot({ path: testInfo.outputPath("native-webmcp-adapted.png"), fullPage: true });
+  await page.setViewportSize({ width: 1_200, height: 630 });
+  await page.screenshot({ path: testInfo.outputPath("native-webmcp-social-card.png") });
 });
