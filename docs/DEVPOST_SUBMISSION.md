@@ -65,9 +65,9 @@ The prototype intentionally uses fictional data and is an exercise environment, 
 
 ## Testing instructions
 
-1. Open the latest ChatGPT desktop app and choose **GPT-5.6 Sol** or **GPT-5.6 Terra**. Website Tools are not currently available with Luna or in Enterprise/Edu workspaces.
-2. In **Settings → Browser → Permissions**, enable **Website Tools**.
-3. Open https://last-city.pages.dev in ChatGPT's integrated browser and confirm **Website Tools live** appears in the top-right status. The address bar exposes the registered tools for inspection.
+1. Open the latest ChatGPT desktop app and choose **GPT-5.6 Sol** or **GPT-5.6 Terra**. Site tools are not currently available with Luna or in Enterprise/Edu workspaces.
+2. In **Settings → Browser → Permissions**, enable **Site tools**.
+3. Open https://last-city.pages.dev in ChatGPT's integrated browser and confirm **Site tools live** appears in the top-right status. The address bar exposes the registered tools for inspection.
 4. Click **Enter joint command** and give the browser agent this directive:
 
    > Act as my incident agent. Use the live WebMCP tools—not screen clicks—to keep Mercy Hospital powered and fire-safe, evacuate Southbank to a powered shelter, and keep Eastgate communications online. Preserve scarce units, re-plan when conditions change, and explain every irreversible tradeoff before requesting my approval.
@@ -75,7 +75,7 @@ The prototype intentionally uses fictional data and is an exercise environment, 
 5. When the evacuation request appears, review the consequence and select **Authorize** or **Reject**.
 6. Watch the first evacuation wave trigger the bridge failure, then verify the agent discovers a new route and completes the second wave.
 
-The primary **Connect AI agent** button opens the Website Tools setup guide and copies the mission. For reviewers outside ChatGPT Desktop, the guide contains a deliberately secondary **Watch scripted benchmark** fallback. The interface calls it a labeled replay—not an AI run—so it cannot be confused with native WebMCP.
+The primary **Connect AI agent** button opens the Site tools setup guide and copies the mission. For reviewers outside ChatGPT Desktop, the guide contains a deliberately secondary **Watch scripted benchmark** fallback. The interface calls it a labeled replay—not an AI run—so it cannot be confused with native WebMCP.
 
 ## Video script - 2 minutes 35 seconds
 
@@ -83,7 +83,7 @@ The primary **Connect AI agent** button opens the Website Tools setup guide and 
 Show the storm, city, 90-second clock, and three objectives. Say: "Last City is a flight simulator for emergency-response AI. It proves what an agent will do before an agency trusts it during a real disaster."
 
 **0:15-0:35 - Native WebMCP**  
-Show **Website Tools live** and the registered tools in ChatGPT's address bar. Explain that these are native browser tools, not a backend MCP server, canvas clicking, or DOM automation.
+Show **Site tools live** and the registered tools in ChatGPT's address bar. Explain that these are native browser tools, not a backend MCP server, canvas clicking, or DOM automation.
 
 **0:35-1:05 - Agent reasoning**  
 Paste the mission directive. Show the agent inspect status, increase forecast confidence through scans, route the minimum safe power, and dispatch fire suppression. Point out that hospital power alone does not complete the objective.
