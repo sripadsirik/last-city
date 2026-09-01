@@ -156,6 +156,7 @@ app.innerHTML = `
           <button type="button" data-command="power" title="Reroute North Grid power to Midtown"><i data-lucide="zap"></i><span>POWER</span></button>
           <button type="button" data-command="drone" title="Deploy drone to Southbank"><i data-lucide="drone"></i><span>DRONE</span></button>
           <button type="button" data-command="evacuate" title="Request Southbank evacuation"><i data-lucide="bus"></i><span>EVAC</span></button>
+          <button type="button" data-command="relay" title="Fortify the Eastgate emergency relay"><i data-lucide="radio"></i><span>RELAY</span></button>
         </div>
       </section>
     </aside>
@@ -481,6 +482,12 @@ function executeManualCommand(command: string): void {
     simulation.scanDistrict("southbank");
     result = simulation.proposeEvacuation("southbank", 2200);
     city.focusDistrict("southbank");
+  } else if (command === "relay") {
+    simulation.scanDistrict("harbor");
+    simulation.scanDistrict("eastgate");
+    result = simulation.reroutePower("harbor", "eastgate");
+    city.focusDistrict("eastgate");
+    city.flashDistrict("eastgate", result.ok ? "success" : "warning");
   } else {
     result = { ok: false, message: "Unknown command." };
   }
@@ -525,6 +532,39 @@ async function runDemoRoute(): Promise<void> {
     step();
     await delay(1150);
   }
+
+  const approvalDeadline = performance.now() + 30_000;
+  while (demoRunning && simulation.snapshot.approval && performance.now() < approvalDeadline) {
+    await delay(200);
+  }
+
+  if (demoRunning && !simulation.snapshot.approval) {
+    showToast("Human decision recorded. Securing the regional relay.");
+    const relaySteps: Array<() => void> = [
+      () => {
+        simulation.scanDistrict("harbor");
+        city.focusDistrict("harbor");
+        city.flashDistrict("harbor", "info");
+      },
+      () => {
+        simulation.scanDistrict("eastgate");
+        city.focusDistrict("eastgate");
+        city.flashDistrict("eastgate", "info");
+      },
+      () => {
+        simulation.reroutePower("harbor", "eastgate");
+        city.focusDistrict("eastgate");
+        city.flashDistrict("eastgate", "success");
+      },
+    ];
+
+    for (const step of relaySteps) {
+      if (!demoRunning) break;
+      step();
+      await delay(900);
+    }
+  }
+
   demoRunning = false;
   requiredElement<HTMLButtonElement>("demo-button").disabled = false;
 }
