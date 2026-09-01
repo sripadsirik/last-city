@@ -606,12 +606,14 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
   const status = requiredElement("webmcp-status");
   if (!context) {
     status.className = "status-chip unavailable";
-    status.querySelector("span")!.textContent = "WebMCP unavailable";
+    status.querySelector("span")!.textContent = "WebMCP preview off";
+    status.title = "Use Chrome 146+ with chrome://flags/#enable-webmcp-testing enabled, or ChatGPT's in-app browser.";
     return;
   }
 
   status.className = "status-chip connected";
   status.querySelector("span")!.textContent = "WebMCP connected";
+  status.title = "Native browser tools are registered and ready.";
 
   const tools = buildTools(state);
   const desiredNames = new Set(tools.map((tool) => tool.name));
