@@ -1,8 +1,8 @@
 # Last City
 
-Last City is a real-time crisis command simulation built for the WebMCP Challenge. A human incident commander and a browser agent share control of a living 3D city while a deterministic supercell creates cascading infrastructure failures.
+Last City is a flight simulator for emergency-response AI. Before an agency trusts an agent during a real disaster, a human incident commander can test it against a repeatable infrastructure cascade inside a living 3D city.
 
-The browser exposes live capabilities instead of a static chatbot. An agent can inspect districts, forecast failures, allocate limited responders, reroute power, and prepare evacuations. Consequential actions pause for explicit human authorization in the interface.
+The browser exposes live capabilities instead of a static chatbot. An agent can inspect districts, forecast failures, allocate limited responders, reroute power, and prepare evacuations. Consequential actions pause for explicit human authorization, and the exercise produces observable evidence of what the agent did, what the human approved, and whether the strategy worked.
 
 **Live simulation:** [last-city.pages.dev](https://last-city.pages.dev)
 
@@ -32,7 +32,7 @@ ChatGPT's in-app browser supports WebMCP directly. For local Google Chrome testi
 3. Set **WebMCP for testing** to **Enabled** and relaunch Chrome.
 4. Open the simulation and confirm the top-right status reads **WebMCP connected**.
 
-An ordinary browser can still run the full mission through the manual command deck.
+Browsers without WebMCP display **WebMCP preview off**. They can still run the same mission through the visible **Guided Engine**, but that fallback is clearly labeled and does not claim native browser-tool execution.
 
 ## Run locally
 
@@ -59,7 +59,7 @@ A strong route is:
 6. Scan Harbor and Eastgate, then reroute Harbor reserve to fortify the relay before the second grid fault.
 7. Use remaining units to protect residents and contain secondary hazards.
 
-The **Run demo route** button executes this sequence, pauses for the human evacuation decision, and then resumes the relay strategy.
+The **Deploy incident agent** button executes this sequence, publishes each stage in the activity rail, pauses for the human evacuation decision, and then resumes the relay strategy. In a WebMCP-capable Chrome session it uses the native registered tools; elsewhere it uses the clearly labeled Guided Engine fallback.
 
 ## WebMCP tools
 
@@ -99,7 +99,7 @@ npm run test:browser
 PLAYWRIGHT_BASE_URL=https://last-city.pages.dev npx playwright test --project=native-webmcp
 ```
 
-The suite includes seven deterministic engine tests, desktop and mobile WebGL pixel checks, a manual-command journey, and a native `document.modelContext.getTools()` / `executeTool()` mission journey.
+The suite includes seven deterministic engine tests, desktop and mobile WebGL pixel checks, manual and guided-agent journeys, and a native `document.modelContext.getTools()` / `executeTool()` mission journey.
 
 ## License
 
