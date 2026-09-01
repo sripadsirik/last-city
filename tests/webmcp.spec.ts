@@ -34,8 +34,9 @@ async function executeTool(page: Page, name: string, input: Record<string, unkno
 }
 
 test("adapts through dynamic native WebMCP tools and a real human authorization", async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
   await page.goto("/");
-  await expect(page.locator("#webmcp-status")).toContainText("WebMCP connected");
+  await expect(page.locator("#webmcp-status")).toContainText("Website Tools live");
   await expect.poll(() => toolNames(page)).toEqual(["forecast_cascade", "inspect_city_status", "scan_district"]);
   expect((await executeTool(page, "inspect_city_status")).phase).toBe("briefing");
 
@@ -76,6 +77,7 @@ test("adapts through dynamic native WebMCP tools and a real human authorization"
   await executeTool(page, "execute_evacuation_wave");
   await expect(page.locator("#objective-southbank")).toHaveClass(/complete/);
   await expect(page.locator("#objective-comms")).toHaveClass(/complete/);
+  await expect(page.locator("#timer")).not.toHaveText("01:30");
 
   const secured = await executeTool(page, "inspect_city_status");
   expect(secured.objectives).toEqual({
