@@ -79,7 +79,7 @@ test("explains Website Tools setup and labels the scripted fallback", async ({ p
   await page.screenshot({ path: testInfo.outputPath("website-tools-connect.png"), fullPage: true });
   await page.getByRole("button", { name: "Watch scripted benchmark" }).click();
 
-  await expect(page.locator("#agent-channel")).toHaveText("GUIDED ENGINE");
+  await expect(page.locator("#agent-channel")).toHaveText("SCRIPTED BENCHMARK");
   await expect(page.locator("#agent-stage")).toHaveText("HUMAN AUTHORITY REQUIRED", { timeout: 15_000 });
   await expect(page.locator("#approval-panel")).toBeVisible();
   await page.getByRole("button", { name: "Authorize" }).click();
