@@ -36,7 +36,8 @@ async function executeTool(
       const context = (document as unknown as { modelContext: NativeModelContext }).modelContext;
       const tool = (await context.getTools()).find((candidate) => candidate.name === toolName);
       if (!tool) throw new Error(`Native WebMCP tool is not registered: ${toolName}`);
-      return context.executeTool(tool, JSON.stringify(toolInput)) as Promise<ToolResult>;
+      const result = await context.executeTool(tool, JSON.stringify(toolInput));
+      return typeof result === "string" ? (JSON.parse(result) as ToolResult) : (result as ToolResult);
     },
     { toolName: name, toolInput: input },
   );
