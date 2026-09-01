@@ -69,6 +69,8 @@ No backend or API key is required. The scenario runs entirely in the browser and
 ```bash
 npm test -- --run
 npm run build
+npx playwright install chromium
+npm run test:browser
 ```
 
 ## License
