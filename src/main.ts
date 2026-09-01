@@ -708,7 +708,10 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
     status.querySelector("span")!.textContent = "WebMCP preview off";
     status.title = "Use Chrome 146+ with chrome://flags/#enable-webmcp-testing enabled, or ChatGPT's in-app browser.";
     setText("agent-channel", "GUIDED ENGINE");
-    renderCapabilitySurface(buildTools(state), state);
+    const previewTools = buildTools(state);
+    activeToolCount = previewTools.length;
+    requiredElement("tool-count").querySelector("span")!.textContent = `${activeToolCount} preview`;
+    renderCapabilitySurface(previewTools, state);
     return;
   }
 
@@ -1044,7 +1047,8 @@ function renderCapabilitySurface(tools: ModelContextTool[], state: Readonly<Miss
     const read = name.startsWith("inspect_") || name.startsWith("forecast_") || name.startsWith("scan_") || name.startsWith("export_");
     return `<span class="${gated ? "gated" : read ? "read" : "action"}">${name}</span>`;
   }).join("");
-  const stage = state.bridgeStatus === "failed" ? "RE-PLAN" : state.evacuationPlan?.authorized ? "EXECUTE" : state.phase === "briefing" ? "OBSERVE" : "DISCOVER";
+  const evacuationComplete = Boolean(state.evacuationPlan && state.evacuationPlan.moved >= state.evacuationPlan.requested);
+  const stage = evacuationComplete ? "MONITOR" : state.bridgeStatus === "failed" ? "RE-PLAN" : state.evacuationPlan?.authorized ? "EXECUTE" : state.phase === "briefing" ? "OBSERVE" : "DISCOVER";
   setText("capability-stage", stage);
   setText("capability-note", state.bridgeStatus === "failed" && !state.alternateRouteKnown
     ? "Ground execution withdrawn. Aerial evidence can unlock a new route."
