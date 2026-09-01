@@ -40,7 +40,7 @@ const HAZARD_COLORS: Record<Severity, number> = {
 export class CityScene {
   private readonly host: HTMLElement;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 500);
+  private readonly camera = new THREE.PerspectiveCamera(48, 1, 0.1, 500);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly controls: OrbitControls;
   private readonly clock = new THREE.Clock();
@@ -67,9 +67,9 @@ export class CityScene {
     host.appendChild(this.renderer.domElement);
 
     this.scene.background = new THREE.Color(0x080a0d);
-    this.scene.fog = new THREE.FogExp2(0x080a0d, 0.0085);
+    this.scene.fog = new THREE.FogExp2(0x0a0d11, 0.0072);
 
-    this.camera.position.set(92, 86, 112);
+    this.camera.position.set(96, 68, 116);
     this.camera.lookAt(0, 0, 3);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.set(0, 0, 3);
@@ -83,6 +83,7 @@ export class CityScene {
     this.addTerrain();
     this.river = this.addRiver();
     this.addRoads();
+    this.addStreetFurniture();
     this.addDistricts();
     this.addCommandCenter();
     this.rain = this.addRain();
@@ -100,7 +101,7 @@ export class CityScene {
       const powerFactor = THREE.MathUtils.clamp(district.power / 100, 0.08, 1);
 
       visual.windows.forEach((material) => {
-        material.emissiveIntensity = 0.2 + powerFactor * 1.45;
+        material.emissiveIntensity = 0.05 + powerFactor * 1.2;
       });
 
       visual.flood.scale.y = THREE.MathUtils.lerp(0.05, 1, district.flood / 100);
@@ -124,7 +125,7 @@ export class CityScene {
   focusDistrict(id: DistrictId): void {
     const visual = this.districtVisuals.get(id);
     if (!visual) return;
-    const offset = new THREE.Vector3(36, 35, 42);
+    const offset = new THREE.Vector3(38, 29, 44);
     this.controls.target.copy(visual.center);
     this.camera.position.copy(visual.center).add(offset);
     this.controls.update();
@@ -132,7 +133,7 @@ export class CityScene {
 
   focusOverview(): void {
     this.controls.target.set(0, 0, 3);
-    this.camera.position.set(92, 86, 112);
+    this.camera.position.set(96, 68, 116);
     this.controls.update();
   }
 
@@ -190,10 +191,10 @@ export class CityScene {
   }
 
   private addLighting(): void {
-    const hemisphere = new THREE.HemisphereLight(0xa9cfff, 0x261f1a, 1.2);
+    const hemisphere = new THREE.HemisphereLight(0x91a7bd, 0x201d1a, 0.72);
     this.scene.add(hemisphere);
 
-    const moon = new THREE.DirectionalLight(0xdde9ff, 2.4);
+    const moon = new THREE.DirectionalLight(0xc9dcf2, 2.8);
     moon.position.set(45, 78, 28);
     moon.castShadow = true;
     moon.shadow.mapSize.set(2048, 2048);
@@ -203,7 +204,7 @@ export class CityScene {
     moon.shadow.camera.bottom = -90;
     this.scene.add(moon);
 
-    const stormGlow = new THREE.PointLight(0x6e78ff, 70, 160, 2);
+    const stormGlow = new THREE.PointLight(0x6d83b8, 48, 180, 2);
     stormGlow.position.set(-55, 45, -35);
     this.scene.add(stormGlow);
   }
@@ -234,14 +235,16 @@ export class CityScene {
   private addRiver(): THREE.Mesh {
     const river = new THREE.Mesh(
       new THREE.PlaneGeometry(132, 21, 12, 4),
-      new THREE.MeshStandardMaterial({
-        color: 0x17749e,
-        emissive: 0x0a3654,
-        emissiveIntensity: 0.8,
+      new THREE.MeshPhysicalMaterial({
+        color: 0x145c78,
+        emissive: 0x082d40,
+        emissiveIntensity: 0.42,
         transparent: true,
-        opacity: 0.78,
-        roughness: 0.25,
-        metalness: 0.25,
+        opacity: 0.86,
+        roughness: 0.16,
+        metalness: 0.12,
+        clearcoat: 0.8,
+        clearcoatRoughness: 0.22,
       }),
     );
     river.rotation.x = -Math.PI / 2;
@@ -251,7 +254,7 @@ export class CityScene {
     for (const x of [-28, 3, 35]) {
       const bridge = new THREE.Mesh(
         new THREE.BoxGeometry(10, 0.9, 24),
-        new THREE.MeshStandardMaterial({ color: 0x3a3d3d, roughness: 0.7, metalness: 0.4 }),
+        new THREE.MeshStandardMaterial({ color: 0x3f4346, roughness: 0.76, metalness: 0.28 }),
       );
       bridge.position.set(x, 1, 30);
       bridge.castShadow = true;
@@ -262,18 +265,18 @@ export class CityScene {
   }
 
   private addRoads(): void {
-    const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x27292a, roughness: 0.9 });
-    const markingMaterial = new THREE.MeshBasicMaterial({ color: 0xd4b849, transparent: true, opacity: 0.62 });
+    const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x202326, roughness: 0.96 });
+    const centerMaterial = new THREE.MeshBasicMaterial({ color: 0xe2b94d, transparent: true, opacity: 0.72 });
+    const laneMaterial = new THREE.MeshBasicMaterial({ color: 0xd8d9d5, transparent: true, opacity: 0.52 });
 
     for (const z of [-36, -20, -4, 13, 47]) {
       const road = new THREE.Mesh(new THREE.PlaneGeometry(126, 5.4), roadMaterial);
       road.rotation.x = -Math.PI / 2;
       road.position.set(0, 0.1, z);
       this.scene.add(road);
-      const marking = new THREE.Mesh(new THREE.PlaneGeometry(126, 0.11), markingMaterial);
-      marking.rotation.x = -Math.PI / 2;
-      marking.position.set(0, 0.13, z);
-      this.scene.add(marking);
+      this.addRoadDashes("horizontal", z, centerMaterial, 0);
+      this.addRoadDashes("horizontal", z, laneMaterial, 1.65);
+      this.addRoadDashes("horizontal", z, laneMaterial, -1.65);
     }
 
     for (const x of [-49, -18, 17, 50]) {
@@ -281,10 +284,92 @@ export class CityScene {
       road.rotation.x = -Math.PI / 2;
       road.position.set(x, 0.11, 0);
       this.scene.add(road);
-      const marking = new THREE.Mesh(new THREE.PlaneGeometry(0.11, 102), markingMaterial);
-      marking.rotation.x = -Math.PI / 2;
-      marking.position.set(x, 0.14, 0);
-      this.scene.add(marking);
+      this.addRoadDashes("vertical", x, centerMaterial, 0);
+      this.addRoadDashes("vertical", x, laneMaterial, 1.65);
+      this.addRoadDashes("vertical", x, laneMaterial, -1.65);
+    }
+  }
+
+  private addRoadDashes(
+    direction: "horizontal" | "vertical",
+    coordinate: number,
+    material: THREE.MeshBasicMaterial,
+    offset: number,
+  ): void {
+    const length = direction === "horizontal" ? 126 : 102;
+    const count = Math.floor(length / 6);
+    const geometry = new THREE.PlaneGeometry(
+      direction === "horizontal" ? 2.8 : 0.1,
+      direction === "horizontal" ? 0.1 : 2.8,
+    );
+    const dashes = new THREE.InstancedMesh(geometry, material, count);
+    const matrix = new THREE.Matrix4();
+    for (let index = 0; index < count; index += 1) {
+      const position = -length / 2 + 3 + index * 6;
+      const x = direction === "horizontal" ? position : coordinate + offset;
+      const z = direction === "horizontal" ? coordinate + offset : position;
+      matrix.makeRotationX(-Math.PI / 2);
+      matrix.setPosition(x, 0.14, z);
+      dashes.setMatrixAt(index, matrix);
+    }
+    dashes.instanceMatrix.needsUpdate = true;
+    this.scene.add(dashes);
+  }
+
+  private addStreetFurniture(): void {
+    const locations: THREE.Vector3[] = [];
+    for (let x = -58; x <= 58; x += 14.5) {
+      locations.push(new THREE.Vector3(x, 0, -39.1), new THREE.Vector3(x, 0, 15.9));
+    }
+    for (let z = -31; z <= 43; z += 14.5) {
+      locations.push(new THREE.Vector3(-21.1, 0, z), new THREE.Vector3(20.1, 0, z));
+    }
+
+    const poles = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.08, 0.11, 3.8, 8),
+      new THREE.MeshStandardMaterial({ color: 0x3e454a, metalness: 0.72, roughness: 0.38 }),
+      locations.length,
+    );
+    const lamps = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.18, 8, 6),
+      new THREE.MeshStandardMaterial({
+        color: 0xffe5a3,
+        emissive: 0xffc85a,
+        emissiveIntensity: 2.4,
+        roughness: 0.25,
+      }),
+      locations.length,
+    );
+    const matrix = new THREE.Matrix4();
+    locations.forEach((position, index) => {
+      matrix.makeTranslation(position.x, 1.9, position.z);
+      poles.setMatrixAt(index, matrix);
+      matrix.makeTranslation(position.x, 3.85, position.z);
+      lamps.setMatrixAt(index, matrix);
+    });
+    poles.instanceMatrix.needsUpdate = true;
+    lamps.instanceMatrix.needsUpdate = true;
+    poles.castShadow = true;
+    this.scene.add(poles, lamps);
+
+    const vehicleColors = [0x9aa4aa, 0xb64b4d, 0x3f6784, 0xc6b36b, 0x596057];
+    for (let index = 0; index < 18; index += 1) {
+      const horizontal = index % 2 === 0;
+      const vehicle = new THREE.Mesh(
+        new THREE.BoxGeometry(horizontal ? 2.5 : 1.25, 0.65, horizontal ? 1.25 : 2.5),
+        new THREE.MeshStandardMaterial({
+          color: vehicleColors[index % vehicleColors.length],
+          metalness: 0.48,
+          roughness: 0.34,
+        }),
+      );
+      if (horizontal) {
+        vehicle.position.set(-54 + (index / 2) * 12, 0.48, index % 4 === 0 ? -34.5 : -37.5);
+      } else {
+        vehicle.position.set(index % 4 === 1 ? -46.5 : -51.5, 0.48, -37 + (index / 2) * 10);
+      }
+      vehicle.castShadow = true;
+      this.scene.add(vehicle);
     }
   }
 
@@ -295,48 +380,76 @@ export class CityScene {
         group.position.set(layout.x, 0, layout.z);
         const buildings: THREE.Mesh[] = [];
         const windows: THREE.MeshStandardMaterial[] = [];
+        const districtPad = new THREE.Mesh(
+          new THREE.BoxGeometry(32, 0.32, 26),
+          new THREE.MeshStandardMaterial({ color: 0x5b5f5e, roughness: 0.92, metalness: 0.02 }),
+        );
+        districtPad.position.y = 0.18;
+        districtPad.receiveShadow = true;
+        group.add(districtPad);
+
+        const facadePalette = [0x4f5961, 0x655f58, 0x48545a, 0x666a67, 0x57545c];
+        const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x30363a, roughness: 0.82, metalness: 0.24 });
 
         for (let index = 0; index < 11; index += 1) {
           const column = index % 4;
           const row = Math.floor(index / 4);
+          if (id === "midtown" && row === 2 && (column === 1 || column === 2)) continue;
           const seed = districtIndex * 19 + index * 7;
           const width = 4.2 + this.seeded(seed) * 3.4;
           const depth = 4.1 + this.seeded(seed + 3) * 3.1;
           const height = 5 + this.seeded(seed + 8) * (id === "midtown" ? 25 : 15);
-          const material = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(layout.color).multiplyScalar(0.34 + this.seeded(seed + 2) * 0.12),
-            emissive: layout.color,
-            emissiveIntensity: 0.75,
-            roughness: 0.62,
-            metalness: 0.22,
-          });
-          const building = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+          const facade = this.createFacadeMaterial(facadePalette[(districtIndex + index) % facadePalette.length], seed);
+          const building = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), [
+            facade,
+            facade,
+            roofMaterial,
+            roofMaterial,
+            facade,
+            facade,
+          ]);
           building.position.set((column - 1.5) * 8.2, height / 2, (row - 1) * 8.3);
           building.castShadow = true;
           building.receiveShadow = true;
           group.add(building);
           buildings.push(building);
-          windows.push(material);
+          windows.push(facade);
 
-          const roof = new THREE.Mesh(
-            new THREE.BoxGeometry(width * 0.3, 0.5, depth * 0.3),
-            new THREE.MeshBasicMaterial({ color: layout.color }),
+          const mechanical = new THREE.Mesh(
+            new THREE.BoxGeometry(width * 0.32, 0.55, depth * 0.34),
+            roofMaterial,
           );
-          roof.position.copy(building.position).setY(height + 0.25);
-          group.add(roof);
+          mechanical.position.copy(building.position).setY(height + 0.28);
+          mechanical.castShadow = true;
+          group.add(mechanical);
+
+          if (height > 18) {
+            const aircraftBeacon = new THREE.Mesh(
+              new THREE.SphereGeometry(0.16, 8, 6),
+              new THREE.MeshBasicMaterial({ color: 0xff4b4b }),
+            );
+            aircraftBeacon.position.copy(building.position).setY(height + 0.75);
+            group.add(aircraftBeacon);
+          }
         }
 
         if (id === "midtown") this.addHospital(group);
+        if (id === "eastgate") this.addRelayTower(group);
+        if (id === "harbor") this.addHarborInfrastructure(group);
+        if (id === "southbank") this.addFloodDefenses(group);
 
         const flood = new THREE.Mesh(
           new THREE.BoxGeometry(30, 0.5, 25),
-          new THREE.MeshStandardMaterial({
-            color: 0x20a9df,
-            emissive: 0x0c587b,
-            emissiveIntensity: 0.85,
+          new THREE.MeshPhysicalMaterial({
+            color: 0x1684ad,
+            emissive: 0x07374c,
+            emissiveIntensity: 0.42,
             transparent: true,
-            opacity: 0.32,
+            opacity: 0.38,
             depthWrite: false,
+            roughness: 0.12,
+            metalness: 0.06,
+            clearcoat: 0.9,
           }),
         );
         flood.position.y = 0.45;
@@ -374,24 +487,219 @@ export class CityScene {
     );
   }
 
+  private createFacadeMaterial(baseColor: number, seed: number): THREE.MeshStandardMaterial {
+    const facadeCanvas = document.createElement("canvas");
+    facadeCanvas.width = 192;
+    facadeCanvas.height = 256;
+    const facade = facadeCanvas.getContext("2d");
+    if (!facade) return new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.72, metalness: 0.16 });
+
+    const color = new THREE.Color(baseColor);
+    facade.fillStyle = `#${color.getHexString()}`;
+    facade.fillRect(0, 0, facadeCanvas.width, facadeCanvas.height);
+    facade.fillStyle = "rgba(10, 14, 17, 0.2)";
+    for (let x = 0; x < facadeCanvas.width; x += 48) facade.fillRect(x, 0, 4, facadeCanvas.height);
+    facade.fillStyle = "rgba(230, 236, 238, 0.07)";
+    for (let y = 14; y < facadeCanvas.height; y += 30) facade.fillRect(0, y, facadeCanvas.width, 2);
+
+    const emissiveCanvas = document.createElement("canvas");
+    emissiveCanvas.width = 192;
+    emissiveCanvas.height = 256;
+    const emissive = emissiveCanvas.getContext("2d");
+    if (!emissive) return new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.72, metalness: 0.16 });
+    emissive.fillStyle = "#000000";
+    emissive.fillRect(0, 0, emissiveCanvas.width, emissiveCanvas.height);
+
+    for (let row = 0; row < 8; row += 1) {
+      for (let column = 0; column < 5; column += 1) {
+        const x = 10 + column * 37;
+        const y = 9 + row * 30;
+        const lit = this.seeded(seed + row * 13 + column * 5) > 0.38;
+        facade.fillStyle = lit ? "#d6bd82" : "#182126";
+        facade.fillRect(x, y, 23, 14);
+        facade.fillStyle = "rgba(220, 234, 238, 0.16)";
+        facade.fillRect(x, y, 23, 2);
+        if (lit) {
+          emissive.fillStyle = this.seeded(seed + row + column) > 0.52 ? "#ffd17a" : "#a8d7e3";
+          emissive.fillRect(x, y, 23, 14);
+        }
+      }
+    }
+
+    const map = new THREE.CanvasTexture(facadeCanvas);
+    map.colorSpace = THREE.SRGBColorSpace;
+    const emissiveMap = new THREE.CanvasTexture(emissiveCanvas);
+    const anisotropy = Math.min(this.renderer.capabilities.getMaxAnisotropy(), 8);
+    map.anisotropy = anisotropy;
+    emissiveMap.anisotropy = anisotropy;
+    return new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      map,
+      emissive: 0xffc97a,
+      emissiveMap,
+      emissiveIntensity: 1,
+      roughness: 0.68,
+      metalness: 0.14,
+    });
+  }
+
   private addHospital(group: THREE.Group): void {
     const baseMaterial = new THREE.MeshStandardMaterial({
-      color: 0xdadbd3,
-      emissive: 0xfff6d2,
-      emissiveIntensity: 0.35,
-      roughness: 0.7,
+      color: 0xb9c0c1,
+      roughness: 0.78,
+      metalness: 0.08,
     });
-    const hospital = new THREE.Mesh(new THREE.BoxGeometry(15, 6, 9), baseMaterial);
-    hospital.position.set(0, 3.2, 12);
+    const hospital = new THREE.Mesh(new THREE.BoxGeometry(14, 7, 8), baseMaterial);
+    hospital.position.set(0, 3.7, 9.5);
     hospital.castShadow = true;
     group.add(hospital);
 
+    const glassMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x83a5ae,
+      emissive: 0x467582,
+      emissiveIntensity: 0.7,
+      metalness: 0.28,
+      roughness: 0.2,
+      transparent: true,
+      opacity: 0.82,
+    });
+    const entrance = new THREE.Mesh(new THREE.BoxGeometry(5.4, 3.4, 0.3), glassMaterial);
+    entrance.position.set(0, 2, 13.65);
+    group.add(entrance);
+
     const crossMaterial = new THREE.MeshBasicMaterial({ color: 0xff4057 });
-    const vertical = new THREE.Mesh(new THREE.BoxGeometry(1.3, 4.6, 0.35), crossMaterial);
-    const horizontal = new THREE.Mesh(new THREE.BoxGeometry(4.6, 1.3, 0.35), crossMaterial);
-    vertical.position.set(0, 3.4, 16.65);
+    const vertical = new THREE.Mesh(new THREE.BoxGeometry(0.72, 2.5, 0.22), crossMaterial);
+    const horizontal = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.72, 0.22), crossMaterial);
+    vertical.position.set(0, 5.2, 13.9);
     horizontal.position.copy(vertical.position);
     group.add(vertical, horizontal);
+
+    const helipad = new THREE.Mesh(
+      new THREE.CylinderGeometry(3.2, 3.2, 0.25, 32),
+      new THREE.MeshStandardMaterial({ color: 0x3d4549, roughness: 0.72, metalness: 0.28 }),
+    );
+    helipad.position.set(0, 7.25, 9.5);
+    group.add(helipad);
+    const helipadMark = new THREE.Mesh(
+      new THREE.RingGeometry(2.15, 2.36, 32),
+      new THREE.MeshBasicMaterial({ color: 0xf4f1de, side: THREE.DoubleSide }),
+    );
+    helipadMark.rotation.x = -Math.PI / 2;
+    helipadMark.position.set(0, 7.39, 9.5);
+    group.add(helipadMark);
+
+    const label = this.createLabelSprite("MERCY HOSPITAL", 0xffd166);
+    label.position.set(0, 11.2, 9.5);
+    group.add(label);
+  }
+
+  private addRelayTower(group: THREE.Group): void {
+    const steel = new THREE.MeshStandardMaterial({ color: 0x778088, metalness: 0.8, roughness: 0.34 });
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.7, 18, 8), steel);
+    mast.position.set(12, 9.2, 8.5);
+    mast.castShadow = true;
+    group.add(mast);
+    for (const height of [4.2, 8.2, 12.2]) {
+      const brace = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.12, 6, 4), steel);
+      brace.rotation.set(Math.PI / 2, 0, Math.PI / 4);
+      brace.position.set(12, height, 8.5);
+      group.add(brace);
+    }
+    const dish = new THREE.Mesh(
+      new THREE.SphereGeometry(2.2, 18, 10, 0, Math.PI * 2, 0, Math.PI / 3.2),
+      new THREE.MeshStandardMaterial({ color: 0xc7ccca, metalness: 0.58, roughness: 0.38, side: THREE.DoubleSide }),
+    );
+    dish.rotation.x = Math.PI * 0.6;
+    dish.position.set(12, 14, 8.5);
+    group.add(dish);
+    const beacon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.24, 10, 8),
+      new THREE.MeshBasicMaterial({ color: 0xff3f4f }),
+    );
+    beacon.position.set(12, 18.5, 8.5);
+    group.add(beacon);
+    const label = this.createLabelSprite("EASTGATE RELAY", 0xd28cff);
+    label.position.set(12, 21, 8.5);
+    group.add(label);
+  }
+
+  private addHarborInfrastructure(group: THREE.Group): void {
+    const craneMaterial = new THREE.MeshStandardMaterial({ color: 0xd9833f, metalness: 0.62, roughness: 0.42 });
+    for (const x of [8.8, 13.4]) {
+      const tower = new THREE.Mesh(new THREE.BoxGeometry(0.55, 10, 0.55), craneMaterial);
+      tower.position.set(x, 5.2, 9);
+      const boom = new THREE.Mesh(new THREE.BoxGeometry(7, 0.48, 0.48), craneMaterial);
+      boom.position.set(x - 2.7, 10.2, 9);
+      const cable = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, 6, 6),
+        new THREE.MeshStandardMaterial({ color: 0x24282b, metalness: 0.8, roughness: 0.35 }),
+      );
+      cable.position.set(x - 5.8, 7.1, 9);
+      group.add(tower, boom, cable);
+    }
+    const containerColors = [0x496979, 0x8b4d48, 0x82743f, 0x455b4c];
+    for (let index = 0; index < 8; index += 1) {
+      const container = new THREE.Mesh(
+        new THREE.BoxGeometry(3.5, 1.45, 1.7),
+        new THREE.MeshStandardMaterial({
+          color: containerColors[index % containerColors.length],
+          metalness: 0.4,
+          roughness: 0.66,
+        }),
+      );
+      container.position.set(6 + (index % 3) * 3.8, 1.05 + Math.floor(index / 6) * 1.5, 4.4 + Math.floor(index / 3) * 2);
+      container.castShadow = true;
+      group.add(container);
+    }
+    const label = this.createLabelSprite("HARBOR PUMP & PORT", 0xff8a5b);
+    label.position.set(10, 13.2, 9);
+    group.add(label);
+  }
+
+  private addFloodDefenses(group: THREE.Group): void {
+    const concrete = new THREE.MeshStandardMaterial({ color: 0x8a8e8c, roughness: 0.92, metalness: 0.02 });
+    for (let index = 0; index < 9; index += 1) {
+      const barrier = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.6, 0.8), concrete);
+      barrier.position.set(-13 + index * 3.25, 1, 11.3);
+      barrier.rotation.y = index % 2 === 0 ? 0.03 : -0.03;
+      barrier.castShadow = true;
+      group.add(barrier);
+    }
+    const pump = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.35, 1.35, 2.6, 16),
+      new THREE.MeshStandardMaterial({ color: 0x4c6570, metalness: 0.62, roughness: 0.4 }),
+    );
+    pump.rotation.z = Math.PI / 2;
+    pump.position.set(11.5, 1.7, 8.5);
+    group.add(pump);
+    const label = this.createLabelSprite("SOUTHBANK LEVEE", 0x48b9ff);
+    label.position.set(0, 6.2, 11.3);
+    group.add(label);
+  }
+
+  private createLabelSprite(text: string, color: number): THREE.Sprite {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 96;
+    const context = canvas.getContext("2d");
+    if (context) {
+      context.fillStyle = "rgba(7, 10, 13, 0.88)";
+      context.fillRect(4, 4, 504, 88);
+      context.strokeStyle = `#${new THREE.Color(color).getHexString()}`;
+      context.lineWidth = 5;
+      context.strokeRect(4, 4, 504, 88);
+      context.fillStyle = "#f4f6f3";
+      context.font = "600 34px Arial";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(text, 256, 50);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+    sprite.scale.set(13.5, 2.55, 1);
+    sprite.renderOrder = 4;
+    return sprite;
   }
 
   private addCommandCenter(): void {
@@ -621,4 +929,3 @@ export class CityScene {
     return value - Math.floor(value);
   }
 }
-
