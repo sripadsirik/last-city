@@ -70,7 +70,26 @@ describe("CrisisSimulation", () => {
     expect(prepared.snapshot.districts.southbank.accessBlocked).toBe(false);
   });
 
-  it("reaches containment when critical infrastructure and evacuation goals are met", () => {
+  it("requires reserve power to absorb the second relay fault", () => {
+    const simulation = new CrisisSimulation();
+    simulation.scanDistrict("harbor");
+    simulation.scanDistrict("eastgate");
+
+    const fortified = simulation.reroutePower("harbor", "eastgate");
+
+    expect(fortified.ok).toBe(true);
+    expect(simulation.snapshot.communicationsProtected).toBe(true);
+    expect(simulation.snapshot.districts.eastgate.power).toBe(97);
+
+    simulation.start();
+    advance(simulation, 48);
+
+    expect(simulation.snapshot.districts.eastgate.power).toBe(61);
+    expect(simulation.snapshot.communicationsOnline).toBe(true);
+    expect(simulation.snapshot.communicationsProtected).toBe(true);
+  });
+
+  it("fails containment when the relay objective is ignored", () => {
     const simulation = new CrisisSimulation();
     simulation.scanDistrict("northgrid");
     simulation.scanDistrict("midtown");
@@ -82,8 +101,28 @@ describe("CrisisSimulation", () => {
 
     advance(simulation, 90);
 
+    expect(simulation.snapshot.communicationsOnline).toBe(false);
+    expect(simulation.snapshot.phase).toBe("failure");
+  });
+
+  it("reaches containment when critical infrastructure and evacuation goals are met", () => {
+    const simulation = new CrisisSimulation();
+    simulation.scanDistrict("northgrid");
+    simulation.scanDistrict("midtown");
+    simulation.reroutePower("northgrid", "midtown");
+    simulation.scanDistrict("southbank");
+    simulation.proposeEvacuation("southbank", 2_900);
+    simulation.resolveApproval(true);
+    simulation.scanDistrict("harbor");
+    simulation.scanDistrict("eastgate");
+    simulation.reroutePower("harbor", "eastgate");
+    simulation.start();
+
+    advance(simulation, 90);
+
     expect(simulation.snapshot.phase).toBe("success");
     expect(simulation.snapshot.hospitalStabilized).toBe(true);
+    expect(simulation.snapshot.communicationsProtected).toBe(true);
     expect(simulation.snapshot.livesProtected).toBeGreaterThanOrEqual(4_340);
   });
 });
