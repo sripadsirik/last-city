@@ -25,18 +25,18 @@ This is grounded in an established training workflow: [FEMA describes games as a
 - An authorized plan is not a completed outcome: the agent must execute evacuation waves and re-plan after a deterministic bridge collapse.
 - Unsafe power transfers are blocked behind a separate human authorization call with an explicit blast-radius preview.
 - Every run ends with an S–D readiness grade across lives, infrastructure, adaptation, governance, and efficiency.
-- The primary **Connect AI agent** path explains the real ChatGPT Website Tools setup; a separately labeled scripted benchmark preserves a visual fallback without pretending to be an AI run.
+- The primary **Connect AI agent** path explains the real ChatGPT Site tools setup; a separately labeled scripted benchmark preserves a visual fallback without pretending to be an AI run.
 
-## Enable Website Tools (WebMCP)
+## Enable Site tools (WebMCP)
 
 Use the latest ChatGPT desktop app with its integrated browser:
 
-1. Select **GPT-5.6 Sol** or **GPT-5.6 Terra**. Website Tools are not currently available with Luna or in Enterprise/Edu workspaces.
-2. Open **Settings → Browser → Permissions** and enable **Website Tools**.
-3. Open the simulation in ChatGPT's integrated browser and confirm the top-right status reads **Website Tools live**.
+1. Select **GPT-5.6 Sol** or **GPT-5.6 Terra**. Site tools are not currently available with Luna or in Enterprise/Edu workspaces.
+2. Open **Settings → Browser → Permissions** and enable **Site tools**.
+3. Open the simulation in ChatGPT's integrated browser and confirm the top-right status reads **Site tools live**.
 4. Inspect the registered tools from the browser address bar, then give ChatGPT the suggested mission.
 
-The **Connect AI agent** button opens these instructions and can copy both the live URL and mission prompt. Ordinary browsers display **Connect Website Tools** because they cannot expose ChatGPT's agent runtime. A **Watch scripted benchmark** fallback remains available inside the guide, but is explicitly labeled as a replay rather than an AI run.
+The **Connect AI agent** button opens these instructions and can copy both the live URL and mission prompt. Ordinary browsers display **Connect Site tools** because they cannot expose ChatGPT's agent runtime. A **Watch scripted benchmark** fallback remains available inside the guide, but is explicitly labeled as a replay rather than an AI run.
 
 For automated native API testing, the repository's Playwright configuration launches Chrome with the WebMCP testing feature enabled.
 
@@ -68,7 +68,7 @@ A strong route still requires observing the live state after every major action:
 9. Observe `execute_evacuation_wave` reappear and complete the remaining movement.
 10. Re-inspect city status and monitor the relay fault, storm surge, and aftershock until scoring.
 
-The intended experience is to let ChatGPT discover and execute this sequence through Website Tools. The visible connection guide contains a separately labeled scripted benchmark for reviewers who are not using ChatGPT Desktop; it publishes the same stages in the activity rail, pauses for the human decision, and adapts to the injected bridge failure without claiming to be a live AI agent.
+The intended experience is to let ChatGPT discover and execute this sequence through Site tools. The visible connection guide contains a separately labeled scripted benchmark for reviewers who are not using ChatGPT Desktop; it publishes the same stages in the activity rail, pauses for the human decision, and adapts to the injected bridge failure without claiming to be a live AI agent.
 
 ## WebMCP tools
 
