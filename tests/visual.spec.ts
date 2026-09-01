@@ -62,7 +62,7 @@ test("renders a nonblank city with a WebMCP-first human console", async ({ page 
   expect(pageErrors).toEqual([]);
 });
 
-test("explains Website Tools setup and labels the scripted fallback", async ({ page }, testInfo) => {
+test("explains Site tools setup and labels the scripted fallback", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "The guided agent journey only needs one fallback-browser pass.");
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -71,7 +71,7 @@ test("explains Website Tools setup and labels the scripted fallback", async ({ p
   });
 
   await page.goto("/");
-  await expect(page.locator("#webmcp-status")).toContainText("Connect Website Tools");
+  await expect(page.locator("#webmcp-status")).toContainText("Connect Site tools");
   await page.getByRole("button", { name: "Enter joint command" }).click();
   await page.getByRole("button", { name: "Connect AI agent" }).click();
   await expect(page.locator("#connection-panel")).toBeVisible();
