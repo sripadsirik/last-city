@@ -51,6 +51,7 @@ export interface MissionState {
   hospitalStabilized: boolean;
   bridgeCollapsed: boolean;
   communicationsOnline: boolean;
+  communicationsProtected: boolean;
   resources: ResourceState;
   districts: Record<DistrictId, DistrictState>;
   activity: ActivityEntry[];
@@ -80,6 +81,7 @@ function createInitialState(): MissionState {
     hospitalStabilized: false,
     bridgeCollapsed: false,
     communicationsOnline: true,
+    communicationsProtected: false,
     resources: {
       ambulance: 2,
       rescue_bus: 2,
@@ -263,7 +265,10 @@ export class CrisisSimulation {
       hospitalPowerLossInSeconds: this.state.hospitalStabilized
         ? null
         : Math.ceil(this.state.hospitalBattery / 0.8),
-      bridgeRisk: this.state.elapsed < 24 ? "failure likely within 30 seconds" : "bridge already failed",
+      bridgeRisk: this.state.elapsed < 28 ? "failure likely at 28 seconds" : "bridge already failed",
+      relayRisk: this.state.communicationsProtected
+        ? "Eastgate has enough reserve to absorb the second grid fault"
+        : "Eastgate relay loses 36% power at 40 seconds; fortify it above 90% before impact or restore it above 55% afterward",
     });
   }
 
@@ -342,6 +347,18 @@ export class CrisisSimulation {
       this.state.livesProtected += 1800;
       this.state.score += 1800;
       this.log("success", "Hospital grid stabilized", `Power rerouted from ${from.name}; critical care remains online.`);
+    } else if (toId === "eastgate" && to.power >= 55) {
+      const restored = !this.state.communicationsOnline;
+      const newlyProtected = !this.state.communicationsProtected;
+      this.state.communicationsOnline = true;
+      this.state.communicationsProtected = true;
+      this.state.livesProtected += newlyProtected ? 900 : 0;
+      this.state.score += newlyProtected ? (restored ? 1150 : 900) : 120;
+      this.log(
+        "success",
+        restored ? "Emergency relay restored" : "Emergency relay fortified",
+        `${from.name} reserve gives Eastgate enough power to maintain regional communications.`,
+      );
     } else {
       this.state.score += 260;
       this.log("success", "Grid route changed", `${transferred}% reserve moved from ${from.name} to ${to.name}.`);
@@ -443,14 +460,30 @@ export class CrisisSimulation {
       );
     }
 
+    if (this.state.elapsed >= 40 && !this.triggeredEvents.has("relay-fault")) {
+      this.triggeredEvents.add("relay-fault");
+      const eastgate = this.state.districts.eastgate;
+      eastgate.power = Math.max(0, eastgate.power - 36);
+      this.state.communicationsProtected = eastgate.power >= 55;
+      this.log(
+        this.state.communicationsProtected ? "warning" : "critical",
+        "Second grid fault struck Eastgate",
+        this.state.communicationsProtected
+          ? `Fortified reserves absorbed the hit; relay power is holding at ${Math.round(eastgate.power)}%.`
+          : `Relay power fell to ${Math.round(eastgate.power)}%. Communications failure is imminent.`,
+      );
+    }
+
     if (this.state.elapsed >= 48 && !this.triggeredEvents.has("comms")) {
       this.triggeredEvents.add("comms");
       const eastgatePower = this.state.districts.eastgate.power;
       if (eastgatePower < 55) {
         this.state.communicationsOnline = false;
+        this.state.communicationsProtected = false;
         this.state.gridStability = Math.max(0, this.state.gridStability - 14);
         this.log("critical", "Communications tower offline", "Eastgate power reserves fell below operating threshold.");
       } else {
+        this.state.communicationsProtected = true;
         this.state.score += 650;
         this.log("success", "Communications held", "Eastgate reserves absorbed the second grid fault.");
       }
@@ -459,7 +492,10 @@ export class CrisisSimulation {
 
   private finishMission(): void {
     const survivalRatio = this.state.livesProtected / this.state.totalPopulation;
-    const criticalSuccess = this.state.hospitalStabilized && survivalRatio >= 0.35;
+    const southbankCleared = this.state.districts.southbank.evacuated >= 1800;
+    const relaySecured = this.state.communicationsOnline && this.state.communicationsProtected;
+    const criticalSuccess =
+      this.state.hospitalStabilized && southbankCleared && relaySecured && survivalRatio >= 0.35;
     this.state.phase = criticalSuccess ? "success" : "failure";
     this.log(
       criticalSuccess ? "success" : "critical",
@@ -539,4 +575,3 @@ export class CrisisSimulation {
 }
 
 export const districtIds = [...DISTRICT_IDS];
-
