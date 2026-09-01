@@ -610,7 +610,7 @@ async function runDemoRoute(): Promise<void> {
   demoRunning = true;
   requiredElement<HTMLButtonElement>("demo-button").disabled = true;
   const native = Boolean(document.modelContext?.getTools && document.modelContext.executeTool);
-  setText("agent-channel", native ? "NATIVE WEBMCP" : "GUIDED ENGINE");
+  setText("agent-channel", native ? "NATIVE WEBMCP" : "SCRIPTED BENCHMARK");
 
   try {
     setAgentOperation("ASSESSING CASCADE", "Building a dependency map before committing scarce assets.", "running");
@@ -770,8 +770,10 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
     status.className = "status-chip unavailable";
     status.querySelector("span")!.textContent = "Connect Website Tools";
     status.title = "Open the setup guide for ChatGPT Desktop Website Tools.";
-    setText("agent-channel", "BROWSER AGENT OFFLINE");
-    setText("agent-detail", "The city is ready. Connect ChatGPT Desktop to expose its native Website Tools.");
+    if (!demoRunning) {
+      setText("agent-channel", "BROWSER AGENT OFFLINE");
+      setText("agent-detail", "The city is ready. Connect ChatGPT Desktop to expose its native Website Tools.");
+    }
     requiredElement("briefing-agent-status").className = "briefing-agent-status offline";
     requiredElement("briefing-agent-status").querySelector("span")!.textContent = "Agent offline · Open connection guide";
     requiredElement("demo-button").querySelector("span")!.textContent = "Connect AI agent";
