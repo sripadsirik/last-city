@@ -299,6 +299,7 @@ const sceneHost = requiredElement<HTMLElement>("scene");
 const city = new CityScene(sceneHost);
 const registeredControllers = new Map<string, AbortController>();
 const registeredSignatures = new Map<string, string>();
+const activeToolExecutions = new Map<string, number>();
 const approvalResolvers = new Set<(result: ActionResult) => void>();
 let activeToolCount = 0;
 let lastTimestamp = performance.now();
@@ -725,6 +726,7 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
 
   registeredControllers.forEach((controller, name) => {
     if (!desiredNames.has(name)) {
+      if ((activeToolExecutions.get(name) ?? 0) > 0) return;
       controller.abort();
       registeredControllers.delete(name);
       registeredSignatures.delete(name);
@@ -735,16 +737,34 @@ async function synchronizeTools(state: Readonly<MissionState>): Promise<void> {
     tools.map(async (tool) => {
       const signature = JSON.stringify({ description: tool.description, inputSchema: tool.inputSchema });
       if (registeredControllers.has(tool.name) && registeredSignatures.get(tool.name) === signature) return;
+      if ((activeToolExecutions.get(tool.name) ?? 0) > 0) return;
       registeredControllers.get(tool.name)?.abort();
       const controller = new AbortController();
       registeredControllers.set(tool.name, controller);
       registeredSignatures.set(tool.name, signature);
-      await context.registerTool(tool, { signal: controller.signal });
+      await context.registerTool(withExecutionTracking(tool), { signal: controller.signal });
     }),
   );
   activeToolCount = tools.length;
   requiredElement("tool-count").querySelector("span")!.textContent = `${activeToolCount} tools`;
   renderCapabilitySurface(tools, state);
+}
+
+function withExecutionTracking(tool: ModelContextTool): ModelContextTool {
+  return {
+    ...tool,
+    execute: async (input, options) => {
+      activeToolExecutions.set(tool.name, (activeToolExecutions.get(tool.name) ?? 0) + 1);
+      try {
+        return await tool.execute(input, options);
+      } finally {
+        const remaining = Math.max(0, (activeToolExecutions.get(tool.name) ?? 1) - 1);
+        if (remaining === 0) activeToolExecutions.delete(tool.name);
+        else activeToolExecutions.set(tool.name, remaining);
+        scheduleToolSynchronization(simulation.snapshot);
+      }
+    },
+  };
 }
 
 function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
