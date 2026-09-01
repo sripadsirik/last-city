@@ -251,14 +251,6 @@ export class CrisisSimulation {
       return district.flood >= 55 || district.fire >= 45 || district.power <= 25;
     }).map((id) => this.state.districts[id].name);
 
-    this.state.score += 35;
-    this.log(
-      "warning",
-      `${horizon}-minute cascade forecast`,
-      `Highest risk: ${criticalDistricts.join(", ") || "no district above critical threshold"}.`,
-    );
-    this.publish();
-
     return this.succeed("Cascade forecast generated.", {
       horizonMinutes: horizon,
       criticalDistricts,
