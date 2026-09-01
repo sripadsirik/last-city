@@ -67,3 +67,29 @@ test("renders a nonblank city and completes the human approval loop", async ({ p
   await page.screenshot({ path: testInfo.outputPath("active.png"), fullPage: true });
   expect(pageErrors).toEqual([]);
 });
+
+test("deploys the visible incident agent when native WebMCP is unavailable", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "The guided agent journey only needs one fallback-browser pass.");
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") pageErrors.push(message.text());
+  });
+
+  await page.goto("/");
+  await expect(page.locator("#webmcp-status")).toContainText("WebMCP preview off");
+  await page.getByRole("button", { name: "Enter joint command" }).click();
+  await page.getByRole("button", { name: "Deploy incident agent" }).click();
+
+  await expect(page.locator("#agent-channel")).toHaveText("GUIDED ENGINE");
+  await expect(page.locator("#agent-stage")).toHaveText("HUMAN AUTHORITY REQUIRED", { timeout: 15_000 });
+  await expect(page.locator("#approval-panel")).toBeVisible();
+  await page.getByRole("button", { name: "Authorize" }).click();
+
+  await expect(page.locator("#agent-stage")).toHaveText("STRATEGY DEPLOYED", { timeout: 15_000 });
+  await expect(page.locator("#objective-hospital")).toHaveClass(/complete/);
+  await expect(page.locator("#objective-southbank")).toHaveClass(/complete/);
+  await expect(page.locator("#objective-comms")).toHaveClass(/complete/);
+  await page.screenshot({ path: testInfo.outputPath("guided-agent-secured.png"), fullPage: true });
+  expect(pageErrors).toEqual([]);
+});
