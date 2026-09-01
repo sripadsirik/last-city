@@ -62,7 +62,7 @@ test("renders a nonblank city with a WebMCP-first human console", async ({ page 
   expect(pageErrors).toEqual([]);
 });
 
-test("deploys the visible incident agent when native WebMCP is unavailable", async ({ page }, testInfo) => {
+test("explains Website Tools setup and labels the scripted fallback", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "The guided agent journey only needs one fallback-browser pass.");
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -71,9 +71,13 @@ test("deploys the visible incident agent when native WebMCP is unavailable", asy
   });
 
   await page.goto("/");
-  await expect(page.locator("#webmcp-status")).toContainText("WebMCP preview off");
+  await expect(page.locator("#webmcp-status")).toContainText("Connect Website Tools");
   await page.getByRole("button", { name: "Enter joint command" }).click();
-  await page.getByRole("button", { name: "Run reference agent" }).click();
+  await page.getByRole("button", { name: "Connect AI agent" }).click();
+  await expect(page.locator("#connection-panel")).toBeVisible();
+  await expect(page.locator("#connection-panel")).toContainText("GPT-5.6 Sol or Terra");
+  await page.screenshot({ path: testInfo.outputPath("website-tools-connect.png"), fullPage: true });
+  await page.getByRole("button", { name: "Watch scripted benchmark" }).click();
 
   await expect(page.locator("#agent-channel")).toHaveText("GUIDED ENGINE");
   await expect(page.locator("#agent-stage")).toHaveText("HUMAN AUTHORITY REQUIRED", { timeout: 15_000 });
