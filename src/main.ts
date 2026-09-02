@@ -65,7 +65,7 @@ declare global {
 }
 
 const DIRECTIVE =
-  "Act as my incident agent. Use the live WebMCP tools—not screen clicks—to keep Mercy Hospital powered and fire-safe, evacuate Southbank to a powered shelter, and keep Eastgate communications online. Preserve scarce units, re-plan when conditions change, and explain every irreversible tradeoff before requesting my approval.";
+  "Act as my incident agent. Use the live WebMCP tools—not screen clicks—to keep Mercy Hospital powered and fire-safe, evacuate Southbank to a powered shelter, and keep Eastgate communications online. Standard mode uses a 90-second operational budget that advances only when tools act, so inspect the current state and execute the mission. Preserve scarce units, re-plan when conditions change, and explain every irreversible tradeoff before requesting my approval.";
 
 const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("Application root is missing.");
@@ -86,7 +86,7 @@ app.innerHTML = `
       </div>
 
       <div class="mission-clock" aria-live="polite">
-        <span>CONTAINMENT WINDOW</span>
+        <span id="clock-label">OPERATION BUDGET</span>
         <strong id="timer">01:30</strong>
         <div class="clock-track"><span id="clock-progress"></span></div>
       </div>
@@ -225,8 +225,8 @@ app.innerHTML = `
         <h1>THE GRID FAILS<br />IN <em>NINETY SECONDS.</em></h1>
         <p>Test an incident agent against a live infrastructure cascade. It handles rapid triage and reversible logistics; you retain authority over decisions that put people in motion.</p>
         <div class="difficulty-switch" role="group" aria-label="Scenario difficulty">
-          <button class="active" type="button" data-difficulty="standard"><strong>STANDARD</strong><span>90 sec · 2 buses · 2 drones</span></button>
-          <button type="button" data-difficulty="expert"><strong>BLACK SKY</strong><span>75 sec · harsher cascade</span></button>
+          <button class="active" type="button" data-difficulty="standard"><strong>STANDARD</strong><span>90 ops sec · latency-neutral</span></button>
+          <button type="button" data-difficulty="expert"><strong>BLACK SKY</strong><span>75 real sec · live pressure</span></button>
         </div>
         <div class="briefing-objectives">
           <span><i data-lucide="hospital"></i> Hospital online</span>
@@ -345,6 +345,21 @@ const TOOL_LATENCY_MS: Record<string, number> = {
   establish_emergency_crossing: 2400,
 };
 
+const TOOL_OPERATION_SECONDS: Record<string, number> = {
+  inspect_city_status: 1,
+  forecast_cascade: 2,
+  scan_district: 4,
+  dispatch_response_unit: 8,
+  deploy_recon_drone: 6,
+  reroute_grid_power: 7,
+  request_high_risk_power_diversion: 3,
+  deploy_mobile_generator: 8,
+  open_emergency_shelter: 5,
+  request_district_evacuation: 3,
+  execute_evacuation_wave: 9,
+  establish_emergency_crossing: 7,
+};
+
 simulation.subscribe((state) => {
   renderState(state);
   city.sync(state);
@@ -378,6 +393,7 @@ function setProgress(id: string, value: number): void {
 
 function renderState(state: Readonly<MissionState>): void {
   const remaining = Math.max(0, Math.ceil(state.duration - state.elapsed));
+  setText("clock-label", state.difficulty === "standard" ? "OPERATION BUDGET" : "LIVE CONTAINMENT");
   setText("timer", `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`);
   setProgress("clock-progress", (remaining / state.duration) * 100);
   setText("grid-value", `${Math.round(state.gridStability)}%`);
@@ -442,8 +458,11 @@ function renderApproval(state: Readonly<MissionState>): void {
 
 function renderPhase(state: Readonly<MissionState>): void {
   const pauseButton = requiredElement<HTMLButtonElement>("pause-button");
+  pauseButton.disabled = state.difficulty === "standard";
   pauseButton.innerHTML = state.phase === "paused" ? '<i data-lucide="play"></i>' : '<i data-lucide="pause"></i>';
-  pauseButton.title = state.phase === "paused" ? "Resume simulation" : "Pause simulation";
+  pauseButton.title = state.difficulty === "standard"
+    ? "Standard mode advances only when an operation executes"
+    : state.phase === "paused" ? "Resume simulation" : "Pause simulation";
   pauseButton.setAttribute("aria-label", pauseButton.title);
   createIcons({ icons: { Pause, Play }, attrs: { "stroke-width": 1.8 } });
 
@@ -483,7 +502,7 @@ function inferDistrict(text: string): DistrictId | null {
 function animationLoop(timestamp: number): void {
   const delta = (timestamp - lastTimestamp) / 1000;
   lastTimestamp = timestamp;
-  simulation.tick(delta);
+  if (simulation.snapshot.difficulty === "expert") simulation.tick(Math.min(delta, 0.25));
   requestAnimationFrame(animationLoop);
 }
 requestAnimationFrame(animationLoop);
@@ -601,6 +620,8 @@ function executeManualCommand(command: string): void {
   } else {
     result = { ok: false, message: "Unknown command." };
   }
+  const toolName = command === "forecast" ? "forecast_cascade" : command === "scan" ? "scan_district" : "inspect_city_status";
+  advanceOperationBudget(toolName, result);
   showToast(result.message, !result.ok);
 }
 
@@ -702,7 +723,9 @@ async function invokeMissionTool(name: string, input: Record<string, unknown> = 
 
   const fallbackTool = buildTools(simulation.snapshot).find((tool) => tool.name === name);
   if (!fallbackTool) throw new Error(`Guided mission tool is unavailable: ${name}`);
-  return fallbackTool.execute(input);
+  const result = await fallbackTool.execute(input);
+  advanceOperationBudget(name, result);
+  return result;
 }
 
 function decodeToolResult(result: unknown): unknown {
@@ -842,6 +865,7 @@ function withExecutionTracking(tool: ModelContextTool): ModelContextTool {
         const result = await tool.execute(input, options);
         const latency = TOOL_LATENCY_MS[tool.name] ?? 0;
         if (latency > 0) await delay(latency);
+        advanceOperationBudget(tool.name, result);
         if (mutating) {
           const outcome = result && typeof result === "object" ? result as ActionResult : null;
           setAgentOperation(
@@ -860,6 +884,15 @@ function withExecutionTracking(tool: ModelContextTool): ModelContextTool {
       }
     },
   };
+}
+
+function advanceOperationBudget(toolName: string, result: unknown): void {
+  const state = simulation.snapshot;
+  if (state.difficulty !== "standard" || state.phase !== "active") return;
+  const outcome = result && typeof result === "object" ? result as { ok?: unknown } : null;
+  const plannedSeconds = TOOL_OPERATION_SECONDS[toolName] ?? 0;
+  const chargedSeconds = outcome?.ok === false ? Math.min(2, plannedSeconds) : plannedSeconds;
+  if (chargedSeconds > 0) simulation.tick(chargedSeconds);
 }
 
 function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
@@ -1105,6 +1138,9 @@ function cityStatus(): Record<string, unknown> {
   return {
     phase: state.phase,
     difficulty: state.difficulty,
+    clockPolicy: state.difficulty === "standard"
+      ? "90-second operational budget; advances only when a tool executes, never during model reasoning or human approval review"
+      : "75-second continuous wall clock; use pause only for explicit human intervention",
     stateVersion: state.version,
     secondsRemaining: Math.max(0, Math.ceil(state.duration - state.elapsed)),
     score: state.score,
@@ -1142,6 +1178,7 @@ function cityStatus(): Record<string, unknown> {
       "Rescue buses move residents only through an authorized evacuation wave.",
       "Unsafe power transfers require human approval.",
       "Capabilities can disappear after world events; re-inspect after every action.",
+      state.difficulty === "standard" ? "Reasoning latency is not charged; successful operations consume the displayed budget." : "Black Sky uses continuous real-time pressure.",
     ],
     recommendedNext: recommendedNext(state),
   };
