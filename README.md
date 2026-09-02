@@ -18,13 +18,14 @@ This is grounded in an established training workflow: [FEMA describes games as a
 
 ## Why it stands out
 
-- A cinematic, replayable 90-second scenario makes tool use visible and easy to judge.
+- A cinematic, replayable 90-second operational budget makes tool use visible and comparable without charging model or network latency.
 - Up to twelve WebMCP tools register, disappear, and change schema as evidence and world state evolve.
 - Tool calls affect one shared simulation state used by the 3D scene, telemetry, score, and activity log.
 - Evacuations demonstrate human-in-the-loop control with a clear consequence preview.
 - An authorized plan is not a completed outcome: the agent must execute evacuation waves and re-plan after a deterministic bridge collapse.
 - Unsafe power transfers are blocked behind a separate human authorization call with an explicit blast-radius preview.
 - Every run ends with an S–D readiness grade across lives, infrastructure, adaptation, governance, and efficiency.
+- Standard advances simulated time only when tools execute; Black Sky retains a continuous 75-second wall clock for expert live-pressure runs.
 - The primary **Connect AI agent** path explains the real ChatGPT Site tools setup; a separately labeled scripted benchmark preserves a visual fallback without pretending to be an AI run.
 
 ## Enable Site tools (WebMCP)
@@ -48,6 +49,8 @@ npm run dev
 ```
 
 Open the URL printed by Vite, start the mission, and use the manual command deck or a WebMCP-capable browser agent.
+
+In Standard mode, the clock intentionally holds while the agent reasons and while a human reviews an approval. Each successful operation consumes a deterministic number of simulated seconds. This measures decisions and recovery rather than ChatGPT UI or network latency. Black Sky is the optional real-time stress test.
 
 ## Suggested demo
 
