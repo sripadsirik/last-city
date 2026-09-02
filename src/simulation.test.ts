@@ -101,8 +101,9 @@ describe("CrisisSimulation", () => {
     expect(simulation.snapshot.districts.eastgate.power).toBeGreaterThanOrEqual(55);
   });
 
-  it("reaches containment only after securing dependencies and adapting to the surprise", () => {
+  it("ends immediately after securing every dependency and adapting to the surprise", () => {
     const simulation = new CrisisSimulation();
+    simulation.start();
     secureInfrastructure(simulation);
     simulation.openShelter("eastgate");
     simulation.scanDistrict("southbank");
@@ -112,8 +113,7 @@ describe("CrisisSimulation", () => {
     simulation.deployDrone("southbank");
     simulation.establishEmergencyCrossing("rail_spur");
     simulation.executeEvacuationWave();
-    simulation.start();
-    advance(simulation, 90);
+    simulation.tick(0.25);
     expect(simulation.snapshot.phase).toBe("success");
     expect(simulation.snapshot.scoreBreakdown.adaptation).toBeGreaterThan(0);
     expect(simulation.snapshot.metrics.approvalsGranted).toBe(1);
