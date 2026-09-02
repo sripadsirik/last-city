@@ -206,7 +206,7 @@ export class CrisisSimulation {
       horizonMinutes: horizon, confidencePercent: Math.min(97, confidence),
       knownDeadlines: [
         { system: "Mercy Hospital", failureInSeconds: this.state.hospitalStabilized ? null : Math.ceil(this.state.hospitalBattery / (this.state.difficulty === "expert" ? 1.05 : 0.78)), dependency: "Midtown resilient power + fire containment" },
-        { system: "Southbank evacuation corridor", failureInSeconds: this.state.bridgeStatus === "open" ? Math.max(0, 34 - Math.ceil(this.state.elapsed)) : 0, dependency: "Route reconnaissance after structural failure" },
+        { system: "Southbank evacuation corridor", failureInSeconds: this.state.bridgeStatus === "open" ? Math.max(0, this.bridgeDeadline() - Math.ceil(this.state.elapsed)) : 0, dependency: "Route reconnaissance after structural failure" },
         { system: "Eastgate communications relay", failureInSeconds: Math.max(0, 42 - Math.ceil(this.state.elapsed)), dependency: "At least 55% post-fault power or mobile generator" },
       ],
       unobservedDistricts: DISTRICT_IDS.filter((id) => !observed.includes(id)),
@@ -341,7 +341,7 @@ export class CrisisSimulation {
   private triggerTimelineEvents(): void {
     if (this.state.elapsed >= 10 && !this.triggeredEvents.has("surge")) { this.triggeredEvents.add("surge"); this.state.districts.harbor.flood = Math.min(100, this.state.districts.harbor.flood + 18); this.log("warning", "WORLD", "Storm surge breached outer barrier", "Harbor pumps are containing the first wave, but reserve power is now mission-critical."); }
     if (this.state.elapsed >= 22 && !this.triggeredEvents.has("hospital-fire")) { this.triggeredEvents.add("hospital-fire"); this.state.districts.midtown.fire = Math.min(100, this.state.districts.midtown.fire + 18); this.log("critical", "WORLD", "Transformer fire reached hospital block", "Power alone is no longer enough; fire suppression is required to secure Mercy Hospital."); }
-    if (this.state.elapsed >= 34 && this.state.bridgeStatus === "open") this.failBridge("Flood scour caused an unscheduled structural failure.");
+    if (this.state.elapsed >= this.bridgeDeadline() && this.state.bridgeStatus === "open") this.failBridge("Flood scour caused an unscheduled structural failure.");
     if (this.state.elapsed >= 42 && !this.triggeredEvents.has("relay-fault")) { this.triggeredEvents.add("relay-fault"); const eastgate = this.state.districts.eastgate; const loss = this.state.generatorSite === "eastgate" ? 12 : 36; eastgate.power = Math.max(0, eastgate.power - loss); this.state.communicationsProtected = eastgate.power >= 55 || this.state.generatorSite === "eastgate"; this.log(this.state.communicationsProtected ? "success" : "critical", "WORLD", "Second grid fault struck Eastgate", this.state.communicationsProtected ? `Resilience plan absorbed the fault; relay power holds at ${Math.round(eastgate.power)}%.` : `Relay power fell to ${Math.round(eastgate.power)}%. Communications will fail without intervention.`); }
     if (this.state.elapsed >= 50 && !this.triggeredEvents.has("communications")) { this.triggeredEvents.add("communications"); if (!this.state.communicationsProtected) { this.state.communicationsOnline = false; this.state.gridStability = Math.max(0, this.state.gridStability - 14); this.log("critical", "WORLD", "Regional communications offline", "Response coordination is degraded and the governance score is falling."); } else { this.protectLives(900); this.log("success", "SYSTEM", "Regional communications held", "Eastgate remained online through the cascade."); } }
     if (this.state.elapsed >= 62 && !this.triggeredEvents.has("aftershock")) { this.triggeredEvents.add("aftershock"); this.state.gridStability = Math.max(0, this.state.gridStability - 7); this.log("warning", "WORLD", "Substation aftershock", "The final stability reserve has been reduced by seven points."); }
@@ -368,6 +368,8 @@ export class CrisisSimulation {
       && this.state.communicationsOnline
       && this.state.communicationsProtected;
   }
+
+  private bridgeDeadline(): number { return this.state.difficulty === "expert" ? 34 : 55; }
 
   private recalculateScore(): void {
     const hospital = this.state.hospitalStabilized && this.state.hospitalFireContained; const evacuationRatio = Math.min(1, this.state.districts.southbank.evacuated / this.state.evacuationTarget); const communications = this.state.communicationsOnline && this.state.communicationsProtected;
