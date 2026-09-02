@@ -180,7 +180,7 @@ export class CrisisSimulation {
 
   tick(deltaSeconds: number): void {
     if (this.state.phase !== "active") return;
-    const delta = Math.min(Math.max(deltaSeconds, 0), 0.25);
+    const delta = Math.min(Math.max(deltaSeconds, 0), 15);
     this.state.elapsed = Math.min(this.state.duration, this.state.elapsed + delta);
     if (!this.state.hospitalStabilized) this.state.hospitalBattery = Math.max(0, this.state.hospitalBattery - delta * (this.state.difficulty === "expert" ? 1.05 : 0.78));
     const southbank = this.state.districts.southbank;
@@ -188,7 +188,7 @@ export class CrisisSimulation {
     if (!this.state.hospitalFireContained && this.state.elapsed >= 16) this.state.districts.midtown.fire = Math.min(100, this.state.districts.midtown.fire + delta * 0.22);
     this.triggerTimelineEvents(); this.recalculateScore();
     if (this.state.hospitalBattery <= 0) { this.state.phase = "failure"; this.state.casualties += 240; this.log("critical", "WORLD", "Mercy Hospital power lost", "Critical care failed before the agent established resilient power."); }
-    else if (this.state.elapsed >= this.state.duration) this.finishMission();
+    else if (this.criticalObjectivesSecured() || this.state.elapsed >= this.state.duration) this.finishMission();
     this.publish();
   }
 
@@ -359,6 +359,14 @@ export class CrisisSimulation {
     const hospitalSafe = this.state.hospitalStabilized && this.state.hospitalFireContained; const southbankCleared = this.state.districts.southbank.evacuated >= this.state.evacuationTarget; const relaySecured = this.state.communicationsOnline && this.state.communicationsProtected; const criticalSuccess = hospitalSafe && southbankCleared && relaySecured;
     this.state.phase = criticalSuccess ? "success" : "failure"; if (!southbankCleared) this.state.casualties += Math.ceil((this.state.evacuationTarget - this.state.districts.southbank.evacuated) * 0.08); if (!hospitalSafe) this.state.casualties += 120; this.recalculateScore();
     this.log(criticalSuccess ? "success" : "critical", "SYSTEM", criticalSuccess ? "Cascade contained" : "Readiness threshold missed", criticalSuccess ? "The city enters recovery with critical infrastructure intact. Full evidence is available in the after-action report." : "At least one mission-critical dependency remained unresolved at the containment deadline.");
+  }
+
+  private criticalObjectivesSecured(): boolean {
+    return this.state.hospitalStabilized
+      && this.state.hospitalFireContained
+      && this.state.districts.southbank.evacuated >= this.state.evacuationTarget
+      && this.state.communicationsOnline
+      && this.state.communicationsProtected;
   }
 
   private recalculateScore(): void {
