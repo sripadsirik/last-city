@@ -41,6 +41,10 @@ test("adapts through dynamic native WebMCP tools and a real human authorization"
   expect((await executeTool(page, "inspect_city_status")).phase).toBe("briefing");
 
   await page.getByRole("button", { name: "Enter joint command" }).click();
+  await expect(page.locator("#clock-label")).toHaveText("OPERATION BUDGET");
+  await expect(page.locator("#timer")).toHaveText("01:30");
+  await page.waitForTimeout(2_500);
+  await expect(page.locator("#timer")).toHaveText("01:30");
   await expect.poll(() => toolNames(page)).toContain("dispatch_response_unit");
 
   await executeTool(page, "scan_district", { district: "midtown" });
@@ -80,12 +84,14 @@ test("adapts through dynamic native WebMCP tools and a real human authorization"
   await expect(page.locator("#timer")).not.toHaveText("01:30");
 
   const secured = await executeTool(page, "inspect_city_status");
+  expect(secured.phase).toBe("success");
   expect(secured.objectives).toEqual({
     secureHospitalPowerAndFire: true,
     evacuateSouthbank: true,
     protectCommunications: true,
   });
   await expect(page.locator("#capability-note")).toContainText("Tool names and schemas change");
+  await expect(page.locator("#result-panel")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("native-webmcp-adapted.png"), fullPage: true });
   await page.setViewportSize({ width: 1_200, height: 630 });
   await page.screenshot({ path: testInfo.outputPath("native-webmcp-social-card.png") });
