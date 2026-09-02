@@ -14,6 +14,8 @@ A flight simulator for emergency-response AI, where an agent races cascading fai
 
 Last City lets an emergency agency test an incident agent before trusting it in a real disaster. Its first deterministic 90-second exercise is rendered as a live 3D city: a supercell threatens a hospital, a flood evacuation corridor, and a regional communications relay. The browser agent must discover the current mission capabilities, inspect hidden dependencies, forecast cascades, allocate scarce units, and re-plan when its original tools stop being valid.
 
+Standard mode treats those 90 seconds as a deterministic operational budget: tool actions advance the cascade, while model reasoning, network latency, and human approval review do not. This keeps scores comparable across models and machines. Black Sky provides the optional 75-second continuous wall-clock stress test.
+
 The human and agent have different jobs. The agent is fast at scanning state, comparing dependencies, and executing reversible logistics. The human owns consequential choices. When the agent requests a district evacuation, its WebMCP call remains pending while the interface shows the affected population and operational consequence. Only a human click can authorize or reject it.
 
 The scenario is not a scripted animation, and there is no three-button win. Every tool changes the same state used by the city, hazard timeline, capability registry, resources, score, objectives, and evidence trace. An evacuation approval only approves a plan. The agent must execute the first bus wave, react when the bridge collapses immediately behind it, notice that the execution tool disappeared, deploy a drone, choose an alternate route with a real tradeoff, and then use the newly re-registered execution tool. A second grid fault and transformer fire force it to reason across power, fire, shelter, communications, and population systems rather than solve three independent objectives.
@@ -31,6 +33,7 @@ Last City uses WebMCP beyond basic form filling:
 - Read-only annotations distinguish inspection from state-changing operations.
 - Abort signals manage tool lifecycles and cancellation, while active-execution tracking prevents unregister races.
 - Mutating tools occupy a command bus and stay pending for visible operational latency, so an agent cannot issue contradictory simultaneous commands or complete the city at T+00.
+- Each Standard-mode tool has a deterministic time cost, making efficiency measurable without turning the benchmark into a test of ChatGPT response latency.
 - Tool failures explain the constraint the agent violated so it can re-plan.
 - Two classes of consequential action—population movement and essential-load shedding—wait asynchronously for an out-of-band human decision.
 - Tool calls visibly update the Three.js scene and the joint activity trace.
@@ -74,6 +77,8 @@ The prototype intentionally uses fictional data and is an exercise environment, 
 
 5. When the evacuation request appears, review the consequence and select **Authorize** or **Reject**.
 6. Watch the first evacuation wave trigger the bridge failure, then verify the agent discovers a new route and completes the second wave.
+
+The Standard clock will hold while ChatGPT reasons. This is intentional. It advances when operations execute and ends immediately when all critical dependencies are secured or the 90-second budget is exhausted.
 
 The primary **Connect AI agent** button opens the Site tools setup guide and copies the mission. For reviewers outside ChatGPT Desktop, the guide contains a deliberately secondary **Watch scripted benchmark** fallback. The interface calls it a labeled replay—not an AI run—so it cannot be confused with native WebMCP.
 
