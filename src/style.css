@@ -88,6 +88,66 @@ svg {
   cursor: grabbing;
 }
 
+.world-operation {
+  position: absolute;
+  z-index: 7;
+  top: 94px;
+  left: 50%;
+  width: min(430px, calc(100vw - 650px));
+  min-width: 300px;
+  padding: 12px 15px 11px;
+  border: 1px solid rgba(78, 225, 255, 0.48);
+  background: linear-gradient(105deg, rgba(6, 13, 17, 0.94), rgba(10, 27, 31, 0.86));
+  box-shadow: 0 0 0 1px rgba(78, 225, 255, 0.08), 0 18px 60px rgba(0, 0, 0, 0.44), 0 0 28px rgba(78, 225, 255, 0.12);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -16px);
+  transition: opacity 180ms ease, transform 240ms ease;
+  backdrop-filter: blur(16px);
+}
+
+.world-operation.active {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.world-operation > span {
+  display: block;
+  color: var(--cyan);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+
+.world-operation > strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 0.025em;
+}
+
+.world-operation > p {
+  margin: 6px 0 9px;
+  color: #c8d1cc;
+  font-size: 11px;
+}
+
+.world-operation > div {
+  height: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.world-operation > div > i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  box-shadow: 0 0 14px rgba(78, 225, 255, 0.7);
+  transition: width 100ms linear;
+}
+
 .storm-vignette {
   position: absolute;
   inset: 0;
@@ -1544,6 +1604,12 @@ button.status-chip { cursor: pointer; }
     top: 111px;
   }
 
+  .world-operation {
+    top: 148px;
+    width: calc(100vw - 20px);
+    min-width: 0;
+  }
+
   .directive-bar {
     right: 10px;
     bottom: 10px;
@@ -1622,6 +1688,14 @@ button.status-chip { cursor: pointer; }
   .map-nav {
     top: 105px;
   }
+
+  .world-operation {
+    top: 142px;
+    padding: 9px 11px 8px;
+  }
+
+  .world-operation > strong { font-size: 15px; }
+  .world-operation > p { margin: 4px 0 7px; font-size: 10px; }
 
   .map-nav-button {
     width: 29px;
