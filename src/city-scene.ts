@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import type { DistrictId, MissionState, Severity, UnitType } from "./simulation";
+import type { DistrictId, EvacuationRoute, MissionState, Severity, UnitType } from "./simulation";
 
 interface DistrictVisual {
   group: THREE.Group;
@@ -10,7 +10,16 @@ interface DistrictVisual {
   fire: THREE.Group;
   marker: THREE.Mesh;
   shelter: THREE.Group;
+  residentCrowd: CrowdVisual;
+  shelterCrowd: CrowdVisual;
   center: THREE.Vector3;
+}
+
+interface CrowdVisual {
+  group: THREE.Group;
+  bodies: THREE.InstancedMesh;
+  heads: THREE.InstancedMesh;
+  capacity: number;
 }
 
 interface MovingUnit {
@@ -20,6 +29,20 @@ interface MovingUnit {
   startedAt: number;
   duration: number;
   airborne: boolean;
+  label: string;
+  destination: string;
+}
+
+interface TransientPerson { mesh: THREE.Group; start: THREE.Vector3; end: THREE.Vector3 }
+interface EvacuationOperation {
+  bus: THREE.Group;
+  people: TransientPerson[];
+  route: THREE.CatmullRomCurve3;
+  routeLine: THREE.Line;
+  startedAt: number;
+  duration: number;
+  moved: number;
+  destination: string;
 }
 
 const DISTRICT_LAYOUT: Record<DistrictId, { x: number; z: number; color: number }> = {
@@ -49,6 +72,8 @@ export class CityScene {
   private readonly rain: THREE.Points;
   private readonly river: THREE.Mesh;
   private readonly commandCenter = new THREE.Vector3(0, 1, 13);
+  private readonly operationHud: HTMLDivElement;
+  private evacuationOperation: EvacuationOperation | null = null;
   private animationFrame = 0;
   private pulseTime = 0;
   private currentState: Readonly<MissionState> | null = null;
@@ -65,6 +90,10 @@ export class CityScene {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.domElement.setAttribute("aria-label", "Interactive three-dimensional crisis map of Last City");
     host.appendChild(this.renderer.domElement);
+    this.operationHud = document.createElement("div");
+    this.operationHud.className = "world-operation";
+    this.operationHud.innerHTML = '<span>FIELD OPERATION</span><strong>STANDBY</strong><p>Awaiting agent dispatch</p><div><i></i></div>';
+    host.appendChild(this.operationHud);
 
     this.scene.background = new THREE.Color(0x080a0d);
     this.scene.fog = new THREE.FogExp2(0x0a0d11, 0.0072);
@@ -95,6 +124,7 @@ export class CityScene {
   }
 
   sync(state: Readonly<MissionState>): void {
+    const previousEvacuated = this.currentState?.districts.southbank.evacuated ?? state.districts.southbank.evacuated;
     this.currentState = state;
     for (const [id, visual] of this.districtVisuals) {
       const district = state.districts[id];
@@ -115,10 +145,20 @@ export class CityScene {
       visual.fire.scale.setScalar(0.6 + district.fire / 65);
       visual.marker.visible = district.flood >= 55 || district.fire >= 35 || district.power <= 24;
       visual.shelter.visible = district.shelterOpen;
+      this.setCrowdCount(visual.residentCrowd, id === "southbank"
+        ? Math.round(visual.residentCrowd.capacity * Math.max(0, 1 - district.evacuated / state.evacuationTarget))
+        : Math.round(visual.residentCrowd.capacity * 0.45));
+      this.setCrowdCount(visual.shelterCrowd, district.shelterOpen && district.shelterCapacity > 0
+        ? Math.round(visual.shelterCrowd.capacity * district.shelterOccupied / district.shelterCapacity)
+        : 0);
 
       if (district.accessBlocked) {
         visual.marker.material = new THREE.MeshBasicMaterial({ color: 0xff4d5e, transparent: true, opacity: 0.9 });
       }
+    }
+    const newlyEvacuated = state.districts.southbank.evacuated - previousEvacuated;
+    if (newlyEvacuated > 0 && state.evacuationPlan) {
+      this.startEvacuationOperation(newlyEvacuated, state.evacuationPlan.route, state.evacuationPlan.shelter);
     }
   }
 
@@ -148,7 +188,10 @@ export class CityScene {
     to.y = airborne ? 16 : 1.1;
     mesh.position.copy(from);
     this.scene.add(mesh);
-    this.movingUnits.push({ mesh, from, to, startedAt: performance.now(), duration: airborne ? 2400 : 3200, airborne });
+    const label = this.unitLabel(unit);
+    const destination = this.currentState?.districts[districtId].name ?? districtId;
+    this.showOperation(label, airborne ? "AERIAL RECON" : "EN ROUTE", destination, 0);
+    this.movingUnits.push({ mesh, from, to, startedAt: performance.now(), duration: airborne ? 3200 : 4400, airborne, label, destination });
   }
 
   flashDistrict(id: DistrictId, severity: Severity): void {
@@ -186,6 +229,7 @@ export class CityScene {
   destroy(): void {
     cancelAnimationFrame(this.animationFrame);
     window.removeEventListener("resize", this.resize);
+    this.cleanupEvacuationOperation();
     this.renderer.dispose();
     this.host.replaceChildren();
   }
@@ -472,6 +516,15 @@ export class CityScene {
         shelter.visible = false;
         group.add(shelter);
 
+        const residentCrowd = this.createCrowd(id === "southbank" ? 0x8edfff : 0xb8c1bd, id === "southbank" ? 108 : 28, districtIndex * 97);
+        residentCrowd.group.position.set(id === "southbank" ? -1 : -10, 0.55, id === "southbank" ? 10 : 8);
+        group.add(residentCrowd.group);
+
+        const shelterCrowd = this.createCrowd(0x72f1ad, 90, districtIndex * 131 + 41);
+        shelterCrowd.group.position.set(10, 0.55, 8);
+        shelterCrowd.group.visible = false;
+        group.add(shelterCrowd.group);
+
         this.scene.add(group);
         this.districtVisuals.set(id, {
           group,
@@ -481,6 +534,8 @@ export class CityScene {
           fire,
           marker,
           shelter,
+          residentCrowd,
+          shelterCrowd,
           center: new THREE.Vector3(layout.x, 0, layout.z),
         });
       },
@@ -811,6 +866,121 @@ export class CityScene {
     return group;
   }
 
+  private createCrowd(color: number, capacity: number, seed: number): CrowdVisual {
+    const group = new THREE.Group();
+    const bodies = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.13, 0.2, 0.5, 6),
+      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.28, roughness: 0.72 }),
+      capacity,
+    );
+    const heads = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.15, 7, 5),
+      new THREE.MeshStandardMaterial({ color: 0xf0c8a4, roughness: 0.84 }),
+      capacity,
+    );
+    const matrix = new THREE.Matrix4();
+    for (let index = 0; index < capacity; index += 1) {
+      const angle = this.seeded(seed + index * 7) * Math.PI * 2;
+      const radius = 0.8 + this.seeded(seed + index * 11 + 5) * 6.6;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius * 0.58;
+      matrix.makeTranslation(x, 0.25, z); bodies.setMatrixAt(index, matrix);
+      matrix.makeTranslation(x, 0.65, z); heads.setMatrixAt(index, matrix);
+    }
+    bodies.instanceMatrix.needsUpdate = true;
+    heads.instanceMatrix.needsUpdate = true;
+    bodies.castShadow = true;
+    group.add(bodies, heads);
+    return { group, bodies, heads, capacity };
+  }
+
+  private setCrowdCount(crowd: CrowdVisual, count: number): void {
+    const visible = Math.max(0, Math.min(crowd.capacity, count));
+    crowd.bodies.count = visible;
+    crowd.heads.count = visible;
+    crowd.group.visible = visible > 0;
+  }
+
+  private startEvacuationOperation(moved: number, route: EvacuationRoute, shelterId: DistrictId): void {
+    this.cleanupEvacuationOperation();
+    const source = this.districtVisuals.get("southbank")?.center.clone();
+    const destinationVisual = this.districtVisuals.get(shelterId);
+    if (!source || !destinationVisual) return;
+    const destination = destinationVisual.center.clone().add(new THREE.Vector3(10, 0, 8));
+    source.add(new THREE.Vector3(-1, 0, 10));
+    source.y = 1.05;
+    destination.y = 1.05;
+    const waypoints = route === "harbor_ferry"
+      ? [source, new THREE.Vector3(-18, 1.05, 31), new THREE.Vector3(4, 1.05, 14), destination]
+      : route === "rail_spur"
+        ? [source, new THREE.Vector3(18, 1.05, 45), new THREE.Vector3(49, 1.05, 24), destination]
+        : [source, new THREE.Vector3(3, 1.05, 30), new THREE.Vector3(18, 1.05, 14), destination];
+    const curve = new THREE.CatmullRomCurve3(waypoints, false, "catmullrom", 0.35);
+    const routeLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(curve.getPoints(72)),
+      new THREE.LineBasicMaterial({ color: 0x4ee1ff, transparent: true, opacity: 0.92, depthTest: false }),
+    );
+    routeLine.renderOrder = 5;
+    this.scene.add(routeLine);
+
+    const bus = this.createUnit("rescue_bus");
+    bus.scale.setScalar(1.18);
+    bus.position.copy(source);
+    this.scene.add(bus);
+    const people: TransientPerson[] = [];
+    for (let index = 0; index < 30; index += 1) {
+      const person = this.createPersonAvatar(index % 3 === 0 ? 0xffc857 : 0x8edfff);
+      const angle = this.seeded(index * 23 + moved) * Math.PI * 2;
+      const radius = 1.8 + this.seeded(index * 31 + moved) * 5.8;
+      const start = source.clone().add(new THREE.Vector3(Math.cos(angle) * radius, -0.5, Math.sin(angle) * radius * 0.55));
+      const end = destination.clone().add(new THREE.Vector3((index % 6 - 2.5) * 0.48, -0.5, (Math.floor(index / 6) - 2) * 0.52));
+      person.position.copy(start);
+      this.scene.add(person);
+      people.push({ mesh: person, start, end });
+    }
+    this.evacuationOperation = {
+      bus, people, route: curve, routeLine, startedAt: performance.now(), duration: 7600, moved,
+      destination: destinationVisual === this.districtVisuals.get("eastgate") ? "EASTGATE SHELTER" : `${shelterId.toUpperCase()} SHELTER`,
+    };
+    this.focusDistrict("southbank");
+    this.showOperation("RESCUE CONVOY", "ASSEMBLING", `${moved.toLocaleString()} residents`, 0);
+  }
+
+  private createPersonAvatar(color: number): THREE.Group {
+    const person = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.18, 0.48, 6),
+      new THREE.MeshBasicMaterial({ color }),
+    );
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.14, 7, 5),
+      new THREE.MeshBasicMaterial({ color: 0xf0c8a4 }),
+    );
+    body.position.y = 0.24; head.position.y = 0.62; person.add(body, head); return person;
+  }
+
+  private cleanupEvacuationOperation(): void {
+    const operation = this.evacuationOperation;
+    if (!operation) return;
+    this.scene.remove(operation.bus, operation.routeLine);
+    operation.people.forEach(({ mesh }) => this.scene.remove(mesh));
+    operation.routeLine.geometry.dispose();
+    (operation.routeLine.material as THREE.Material).dispose();
+    this.evacuationOperation = null;
+  }
+
+  private showOperation(label: string, stage: string, detail: string, progress: number): void {
+    this.operationHud.classList.add("active");
+    this.operationHud.querySelector("span")!.textContent = label;
+    this.operationHud.querySelector("strong")!.textContent = stage;
+    this.operationHud.querySelector("p")!.textContent = detail;
+    (this.operationHud.querySelector("i") as HTMLElement).style.width = `${Math.round(progress * 100)}%`;
+  }
+
+  private unitLabel(unit: UnitType): string {
+    return ({ ambulance: "AMBULANCE 02", rescue_bus: "RESCUE CONVOY", drone: "RECON DRONE", fire_engine: "ENGINE 07", utility_truck: "GRID MOBILE 01" } satisfies Record<UnitType, string>)[unit];
+  }
+
   private createUnit(unit: UnitType): THREE.Group {
     const group = new THREE.Group();
     const colors: Record<UnitType, number> = {
@@ -843,6 +1013,13 @@ export class CityScene {
           arm.position.set(x * 0.45, 0, z * 0.45);
           arm.rotation.y = x === z ? Math.PI / 4 : -Math.PI / 4;
           group.add(arm);
+          const rotor = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.62, 0.62, 0.05, 16),
+            new THREE.MeshBasicMaterial({ color: 0x8beeff, transparent: true, opacity: 0.58 }),
+          );
+          rotor.position.set(x, 0.12, z);
+          rotor.name = "rotor";
+          group.add(rotor);
         }
       }
     } else {
@@ -856,6 +1033,23 @@ export class CityScene {
           wheel.position.set(x * 1.2, -0.58, z);
           group.add(wheel);
         }
+      }
+      const lightBar = new THREE.Group();
+      for (const [x, color] of [[-0.36, 0xff4057], [0.36, 0x4ee1ff]] as const) {
+        const light = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.18, 0.28), new THREE.MeshBasicMaterial({ color }));
+        light.position.set(x, 0.72, 0); light.name = "siren"; lightBar.add(light);
+      }
+      group.add(lightBar);
+      if (unit === "rescue_bus") {
+        const windowMaterial = new THREE.MeshBasicMaterial({ color: 0x9eeeff, transparent: true, opacity: 0.82 });
+        for (const x of [-1.5, -0.7, 0.1, 0.9, 1.7]) {
+          for (const z of [-0.92, 0.92]) {
+            const window = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.38), windowMaterial);
+            window.position.set(x, 0.18, z); window.rotation.y = z > 0 ? 0 : Math.PI; group.add(window);
+          }
+        }
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(4.9, 0.16, 1.86), new THREE.MeshBasicMaterial({ color: 0xff4d5e }));
+        stripe.position.y = -0.12; group.add(stripe);
       }
     }
     return group;
@@ -885,8 +1079,47 @@ export class CityScene {
       if (visual.shelter.visible) visual.shelter.rotation.y += delta * 0.5;
     }
 
+    const evacuation = this.evacuationOperation;
+    if (evacuation) {
+      this.animateUnitSignals(evacuation.bus, delta);
+      const progress = THREE.MathUtils.clamp((now - evacuation.startedAt) / evacuation.duration, 0, 1);
+      if (progress < 0.28) {
+        const boarding = progress / 0.28;
+        evacuation.people.forEach((person, index) => {
+          const queueOffset = new THREE.Vector3((index % 6 - 2.5) * 0.18, 0, (Math.floor(index / 6) - 2) * 0.12);
+          person.mesh.visible = true;
+          person.mesh.position.lerpVectors(person.start, evacuation.bus.position.clone().add(queueOffset), boarding);
+        });
+        this.showOperation("RESCUE CONVOY", boarding < 0.3 ? "ASSEMBLING" : "BOARDING", `${evacuation.moved.toLocaleString()} residents · Southbank`, progress);
+      } else if (progress < 0.84) {
+        const transit = (progress - 0.28) / 0.56;
+        evacuation.people.forEach((person) => { person.mesh.visible = false; });
+        evacuation.bus.position.copy(evacuation.route.getPointAt(transit));
+        const tangent = evacuation.route.getTangentAt(transit);
+        evacuation.bus.rotation.y = Math.atan2(tangent.x, tangent.z);
+        (evacuation.routeLine.material as THREE.LineBasicMaterial).opacity = 0.5 + Math.sin(this.pulseTime * 7) * 0.32;
+        this.showOperation("RESCUE CONVOY", "IN TRANSIT", `Southbank → ${evacuation.destination}`, progress);
+      } else {
+        const unloading = (progress - 0.84) / 0.16;
+        evacuation.bus.position.copy(evacuation.route.getPointAt(1));
+        evacuation.people.forEach((person, index) => {
+          person.mesh.visible = true;
+          const busOffset = new THREE.Vector3((index % 6 - 2.5) * 0.1, 0, (Math.floor(index / 6) - 2) * 0.08);
+          person.mesh.position.lerpVectors(evacuation.bus.position.clone().add(busOffset), person.end, unloading);
+        });
+        this.showOperation("RESCUE CONVOY", unloading < 0.75 ? "SHELTER INTAKE" : "WAVE SECURED", `${evacuation.moved.toLocaleString()} residents received`, progress);
+      }
+      if (progress >= 1) {
+        const destination = evacuation.destination;
+        this.cleanupEvacuationOperation();
+        this.showOperation("RESCUE CONVOY", "WAVE COMPLETE", destination, 1);
+        window.setTimeout(() => { if (!this.evacuationOperation && this.movingUnits.length === 0) this.operationHud.classList.remove("active"); }, 1400);
+      }
+    }
+
     for (let index = this.movingUnits.length - 1; index >= 0; index -= 1) {
       const moving = this.movingUnits[index];
+      this.animateUnitSignals(moving.mesh, delta);
       const progress = THREE.MathUtils.clamp((now - moving.startedAt) / moving.duration, 0, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       moving.mesh.position.lerpVectors(moving.from, moving.to, eased);
@@ -896,11 +1129,16 @@ export class CityScene {
       } else {
         moving.mesh.rotation.y = Math.atan2(moving.to.x - moving.from.x, moving.to.z - moving.from.z);
       }
+      if (!this.evacuationOperation) this.showOperation(moving.label, progress < 0.88 ? "EN ROUTE" : "ON SCENE", moving.destination, progress);
       if (progress >= 1) {
         moving.mesh.scale.multiplyScalar(Math.max(0.01, 1 - delta * 2));
         if (moving.mesh.scale.x <= 0.08) {
           this.scene.remove(moving.mesh);
           this.movingUnits.splice(index, 1);
+          if (!this.evacuationOperation && this.movingUnits.length === 0) {
+            this.showOperation(moving.label, "DEPLOYED", moving.destination, 1);
+            window.setTimeout(() => { if (!this.evacuationOperation && this.movingUnits.length === 0) this.operationHud.classList.remove("active"); }, 1200);
+          }
         }
       }
     }
@@ -924,6 +1162,18 @@ export class CityScene {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
   };
+
+  private animateUnitSignals(unit: THREE.Group, delta: number): void {
+    unit.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      if (child.name === "rotor") child.rotation.y += delta * 28;
+      if (child.name === "siren") {
+        const material = child.material as THREE.MeshBasicMaterial;
+        material.opacity = 0.35 + (Math.sin(this.pulseTime * 18 + child.position.x * 8) + 1) * 0.32;
+        material.transparent = true;
+      }
+    });
+  }
 
   private seeded(seed: number): number {
     const value = Math.sin(seed * 999) * 43758.5453;
