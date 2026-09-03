@@ -91,7 +91,7 @@ svg {
 .world-operation {
   position: absolute;
   z-index: 7;
-  top: 94px;
+  bottom: 112px;
   left: 50%;
   width: min(430px, calc(100vw - 650px));
   min-width: 300px;
@@ -1765,6 +1765,7 @@ button.status-chip { cursor: pointer; }
 
   .world-operation {
     top: 148px;
+    bottom: auto;
     width: calc(100vw - 20px);
     min-width: 0;
   }
