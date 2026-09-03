@@ -336,13 +336,8 @@ const TOOL_LATENCY_MS: Record<string, number> = {
   scan_district: 900,
   dispatch_response_unit: 2800,
   deploy_recon_drone: 2400,
-  reroute_grid_power: 1800,
-  request_high_risk_power_diversion: 600,
-  deploy_mobile_generator: 2800,
-  open_emergency_shelter: 1700,
-  request_district_evacuation: 600,
-  execute_evacuation_wave: 3200,
-  establish_emergency_crossing: 2400,
+  manage_grid: 2800,
+  manage_evacuation: 4200,
 };
 
 const TOOL_OPERATION_SECONDS: Record<string, number> = {
@@ -351,13 +346,8 @@ const TOOL_OPERATION_SECONDS: Record<string, number> = {
   scan_district: 4,
   dispatch_response_unit: 8,
   deploy_recon_drone: 6,
-  reroute_grid_power: 7,
-  request_high_risk_power_diversion: 3,
-  deploy_mobile_generator: 8,
-  open_emergency_shelter: 5,
-  request_district_evacuation: 3,
-  execute_evacuation_wave: 9,
-  establish_emergency_crossing: 7,
+  manage_grid: 7,
+  manage_evacuation: 7,
 };
 
 simulation.subscribe((state) => {
@@ -646,7 +636,7 @@ async function runDemoRoute(): Promise<void> {
     await delay(400);
 
     setAgentOperation("SECURING CRITICAL CARE", "Restoring resilient power and containing the transformer fire.", "running");
-    await invokeMissionTool("reroute_grid_power", { from: "northgrid", to: "midtown", amountPercent: 23 });
+    await invokeMissionTool("manage_grid", { action: "reroute", from: "northgrid", to: "midtown", amountPercent: 23 });
     await delay(450);
     await invokeMissionTool("dispatch_response_unit", { unit: "fire_engine", district: "midtown" });
     await delay(500);
@@ -654,9 +644,9 @@ async function runDemoRoute(): Promise<void> {
     setAgentOperation("BUILDING RESILIENCE", "Committing the only generator to Eastgate, then opening a powered shelter.", "running");
     await invokeMissionTool("scan_district", { district: "eastgate" });
     await delay(400);
-    await invokeMissionTool("deploy_mobile_generator", { district: "eastgate" });
+    await invokeMissionTool("manage_grid", { action: "deploy_generator", to: "eastgate" });
     await delay(400);
-    await invokeMissionTool("open_emergency_shelter", { district: "eastgate" });
+    await invokeMissionTool("manage_evacuation", { action: "open_shelter", shelter: "eastgate" });
     await invokeMissionTool("scan_district", { district: "southbank" });
     await delay(500);
 
@@ -665,7 +655,8 @@ async function runDemoRoute(): Promise<void> {
       "The agent prepared a population movement plan. Execution is blocked until you decide.",
       "approval",
     );
-    const evacuation = await invokeMissionTool("request_district_evacuation", {
+    const evacuation = await invokeMissionTool("manage_evacuation", {
+      action: "request_plan",
       district: "southbank",
       residents: simulation.snapshot.evacuationTarget,
       shelter: "eastgate",
@@ -675,18 +666,18 @@ async function runDemoRoute(): Promise<void> {
 
     if (evacuationApproved) {
       setAgentOperation("EXECUTING WAVE ONE", "Moving one convoy, then re-reading live capability state.", "running");
-      await invokeMissionTool("execute_evacuation_wave");
+      await invokeMissionTool("manage_evacuation", { action: "execute_wave" });
       city.launchUnit("rescue_bus", "southbank");
       await delay(650);
 
       setAgentOperation("SURPRISE · ROUTE LOST", "Meridian Bridge failed. The old execution tool was withdrawn; launching aerial reconnaissance.", "warning");
       await invokeMissionTool("deploy_recon_drone", { district: "southbank" });
       await delay(650);
-      await invokeMissionTool("establish_emergency_crossing", { route: "rail_spur" });
+      await invokeMissionTool("manage_evacuation", { action: "establish_crossing", route: "rail_spur" });
       await delay(450);
 
       setAgentOperation("RE-PLANNED · WAVE TWO", "The new route unlocked evacuation execution again.", "running");
-      await invokeMissionTool("execute_evacuation_wave");
+      await invokeMissionTool("manage_evacuation", { action: "execute_wave" });
       city.launchUnit("rescue_bus", "southbank");
     }
 
@@ -895,240 +886,134 @@ function advanceOperationBudget(toolName: string, result: unknown): void {
   if (chargedSeconds > 0) simulation.tick(chargedSeconds);
 }
 
-function buildTools(state: Readonly<MissionState>): ModelContextTool[] {
-  const tools: ModelContextTool[] = [
+function buildTools(_state: Readonly<MissionState>): ModelContextTool[] {
+  const districts = districtProperty();
+  const requireMission = (): ActionResult | null => {
+    const phase = simulation.snapshot.phase;
+    return phase === "active" || phase === "paused"
+      ? null
+      : { ok: false, message: "Mission operations are offline.", recovery: "Ask the human to select Enter joint command, then retry." };
+  };
+
+  return [
     {
       name: "inspect_city_status",
-      title: "Inspect city status",
-      description: "Read the authoritative live mission snapshot, active constraints, known alerts, objectives, resources, and recommended next observations. Use this after every major world event because tools can change.",
+      title: "Inspect city",
+      description: "Read live objectives, hazards, resources, capability readiness, and recommended actions.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true },
       execute: () => { simulation.recordRead(); return cityStatus(); },
     },
     {
       name: "scan_district",
-      title: "Scan a district",
-      description: "Synchronize one district's digital twin and reveal hazards, thresholds, and infrastructure dependencies. Scan before allocating scarce assets.",
+      title: "Scan district",
+      description: "Reveal one district's hazards and infrastructure dependencies before committing resources.",
       inputSchema: districtSchema(),
       execute: (input) => {
-        const district = parseDistrict(input.district);
-        const result = simulation.scanDistrict(district);
-        city.focusDistrict(district);
-        city.flashDistrict(district, result.ok ? "info" : "warning");
-        return result;
+        const blocked = requireMission(); if (blocked) return blocked;
+        const district = parseDistrict(input.district); const result = simulation.scanDistrict(district);
+        city.focusDistrict(district); city.flashDistrict(district, result.ok ? "info" : "warning"); return result;
       },
     },
     {
       name: "forecast_cascade",
       title: "Forecast cascade",
-      description: "Forecast timed cascade failures. Confidence rises as more linked districts are scanned; call again after surprises.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          horizonMinutes: {
-            type: "integer",
-            minimum: 1,
-            maximum: 30,
-            description: "How many simulated minutes ahead to evaluate for cascading failures.",
-          },
-        },
-        required: ["horizonMinutes"],
-        additionalProperties: false,
-      },
+      description: "Predict timed failures; confidence improves after linked districts are scanned.",
+      inputSchema: { type: "object", properties: { horizonMinutes: { type: "integer", minimum: 1, maximum: 30 } }, required: ["horizonMinutes"], additionalProperties: false },
       annotations: { readOnlyHint: true },
       execute: (input) => simulation.forecastCascade(parseNumber(input.horizonMinutes, "horizonMinutes")),
     },
-  ];
-
-  if (state.phase === "success" || state.phase === "failure") {
-    tools.splice(1);
-  }
-
-  const operational = state.phase === "active" || state.phase === "paused";
-  if (operational) {
-    tools.push({
+    {
       name: "dispatch_response_unit",
-      title: "Dispatch response unit",
-      description: "Dispatch one scarce ambulance or fire engine to a scanned, reachable district. Rescue buses are reserved for authorized evacuation waves.",
+      title: "Dispatch unit",
+      description: "Send one scarce ambulance or fire engine to a scanned, reachable district.",
+      inputSchema: { type: "object", properties: { unit: { type: "string", enum: ["ambulance", "fire_engine"] }, district: districts }, required: ["unit", "district"], additionalProperties: false },
+      execute: (input) => {
+        const blocked = requireMission(); if (blocked) return blocked;
+        const unit = parseUnit(input.unit); const district = parseDistrict(input.district); const result = simulation.dispatchUnit(unit, district);
+        if (result.ok) city.launchUnit(unit, district); return result;
+      },
+    },
+    {
+      name: "deploy_recon_drone",
+      title: "Deploy drone",
+      description: "Consume a drone to map hazards and discover alternate access after a route failure.",
+      inputSchema: districtSchema(),
+      execute: (input) => {
+        const blocked = requireMission(); if (blocked) return blocked;
+        const district = parseDistrict(input.district); const result = simulation.deployDrone(district);
+        if (result.ok) city.launchUnit("drone", district); return result;
+      },
+    },
+    {
+      name: "manage_grid",
+      title: "Manage grid",
+      description: "Reroute power, deploy the sole generator, or request human approval for essential-load shedding.",
       inputSchema: {
         type: "object",
         properties: {
-          unit: {
-            type: "string",
-            enum: ["ambulance", "fire_engine"],
-            description: "The scarce response unit to consume and dispatch.",
-          },
-          district: districtProperty(undefined, "District receiving the response unit."),
+          action: { type: "string", enum: ["reroute", "deploy_generator", "request_risky_diversion"], description: "Grid operation to attempt." },
+          from: { ...districts, description: "Required donor district for power transfers." },
+          to: { ...districts, description: "Transfer destination or generator target." },
+          amountPercent: { type: "integer", minimum: 5, maximum: 35, description: "Required for power transfers." },
         },
-        required: ["unit", "district"],
-        additionalProperties: false,
+        required: ["action", "to"], additionalProperties: false,
       },
-      execute: (input) => {
-        const unit = parseUnit(input.unit);
-        const district = parseDistrict(input.district);
-        const result = simulation.dispatchUnit(unit, district);
-        if (result.ok) city.launchUnit(unit, district);
-        return result;
+      execute: async (input, options) => {
+        const blocked = requireMission(); if (blocked) return blocked;
+        const action = String(input.action); const to = parseDistrict(input.to);
+        if (action === "deploy_generator") {
+          const result = simulation.deployMobileGenerator(to); if (result.ok) city.launchUnit("utility_truck", to); return result;
+        }
+        const from = parseDistrict(input.from); const amount = parseNumber(input.amountPercent, "amountPercent");
+        if (action === "reroute") { const result = simulation.reroutePower(from, to, amount); city.flashDistrict(to, result.ok ? "success" : "warning"); return result; }
+        if (action !== "request_risky_diversion") return { ok: false, message: "Unknown grid action." };
+        const proposed = simulation.proposeRiskyPowerDiversion(from, to, amount); if (!proposed.ok) return proposed;
+        return waitForHumanApproval(options?.signal);
       },
-    });
-
-    tools.push({
-      name: "deploy_recon_drone",
-      title: "Deploy reconnaissance drone",
-      description: "Consume a reconnaissance drone to reveal live hazards. After the bridge collapse, a Southbank drone scan unlocks alternate-route tools.",
-      inputSchema: districtSchema(),
-      execute: (input) => {
-        const district = parseDistrict(input.district);
-        const result = simulation.deployDrone(district);
-        if (result.ok) city.launchUnit("drone", district);
-        return result;
+    },
+    {
+      name: "manage_evacuation",
+      title: "Manage evacuation",
+      description: "Open shelter capacity, request human approval, execute one convoy, or establish an alternate crossing.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["open_shelter", "request_plan", "execute_wave", "establish_crossing"], description: "Evacuation operation to attempt." },
+          district: { ...districts, description: "Required source district for request_plan." },
+          shelter: { ...districts, description: "Required for open_shelter and request_plan." },
+          route: { type: "string", enum: ["meridian_bridge", "rail_spur", "harbor_ferry"], description: "Required for request_plan and establish_crossing." },
+          residents: { type: "integer", minimum: 100, maximum: 4000, description: "Required for request_plan." },
+        },
+        required: ["action"], additionalProperties: false,
       },
-    });
-
-    const scanned = districtIds.filter((id) => state.districts[id].scanned);
-    if (scanned.length >= 2) {
-      tools.push({
-        name: "reroute_grid_power",
-        title: "Reroute grid power",
-        description: "Move 5–35% reserve between scanned districts. Safety policy blocks transfers that leave a source below 50%; risky diversions require a separate human-gated tool.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            from: districtProperty(undefined, "Scanned district donating reserve power."),
-            to: districtProperty(undefined, "Scanned district receiving reserve power."),
-            amountPercent: { type: "integer", minimum: 5, maximum: 35, description: "Percentage points of reserve power to transfer." },
-          },
-          required: ["from", "to", "amountPercent"],
-          additionalProperties: false,
-        },
-        execute: (input) => {
-          const from = parseDistrict(input.from);
-          const to = parseDistrict(input.to);
-          const result = simulation.reroutePower(from, to, parseNumber(input.amountPercent, "amountPercent"));
-          city.flashDistrict(to, result.ok ? "success" : "warning");
-          return result;
-        },
-      });
-
-      tools.push({
-        name: "request_high_risk_power_diversion",
-        title: "Request high-risk power diversion",
-        description: "Propose shedding essential source load to protect another scanned district. The call remains pending until the human reviews the affected population and cascading consequence.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            from: districtProperty(scanned, "Scanned district that would shed essential load."),
-            to: districtProperty(scanned, "Scanned critical destination."),
-            amountPercent: { type: "integer", minimum: 5, maximum: 35 },
-          },
-          required: ["from", "to", "amountPercent"], additionalProperties: false,
-        },
-        execute: async (input, options) => {
-          const proposed = simulation.proposeRiskyPowerDiversion(parseDistrict(input.from), parseDistrict(input.to), parseNumber(input.amountPercent, "amountPercent"));
-          if (!proposed.ok) return proposed;
-          return waitForHumanApproval(options?.signal);
-        },
-      });
-    }
-
-    const generatorTargets = (["midtown", "eastgate"] as DistrictId[]).filter((id) => state.districts[id].scanned);
-    if (state.resources.mobile_generator > 0 && generatorTargets.length > 0) {
-      tools.push({
-        name: "deploy_mobile_generator",
-        title: "Deploy mobile generator",
-        description: "Irreversibly commit the only mobile generator to scanned Mercy Hospital or Eastgate relay. This avoids shedding essential load elsewhere.",
-        inputSchema: districtSchema(generatorTargets),
-        execute: (input) => {
-          const district = parseDistrict(input.district); const result = simulation.deployMobileGenerator(district);
-          if (result.ok) city.launchUnit("utility_truck", district);
-          return result;
-        },
-      });
-    }
-
-    const shelterDistricts = scanned.filter((id) => !state.districts[id].shelterOpen);
-    if (shelterDistricts.length > 0) {
-      tools.push({
-        name: "open_emergency_shelter",
-        title: "Open emergency shelter",
-        description: "Open a shelter in a scanned safe district, increasing evacuation capacity and resident protection.",
-        inputSchema: districtSchema(shelterDistricts),
-        execute: (input) => {
-          const district = parseDistrict(input.district);
-          const result = simulation.openShelter(district);
-          city.flashDistrict(district, result.ok ? "success" : "warning");
-          return result;
-        },
-      });
-    }
-
-    const evacuationDistricts = scanned.filter(
-      (id) => state.districts[id].evacuated < state.districts[id].population,
-    );
-    const openShelters = scanned.filter((id) => state.districts[id].shelterOpen);
-    if (evacuationDistricts.includes("southbank") && openShelters.length > 0 && !state.evacuationPlan?.authorized) {
-      tools.push({
-        name: "request_district_evacuation",
-        title: "Request district evacuation",
-        description: "Propose a population movement plan to an open shelter. The tool call waits asynchronously for explicit human approval; approval authorizes the plan but does not execute any wave.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            district: districtProperty(["southbank"], "Flooded district to evacuate."),
-            shelter: districtProperty(openShelters, "Scanned open shelter receiving residents."),
-            route: { type: "string", enum: state.alternateRouteKnown ? ["meridian_bridge", "rail_spur", "harbor_ferry"] : ["meridian_bridge"], description: "Verified evacuation corridor." },
-            residents: {
-              type: "integer",
-              minimum: 100,
-              maximum: 4000,
-              description: "Number of residents to move through constrained evacuation corridors.",
-            },
-          },
-          required: ["district", "residents", "shelter", "route"],
-          additionalProperties: false,
-        },
-        execute: async (input, options) => {
-          const district = parseDistrict(input.district);
-          const proposed = simulation.proposeEvacuation(
-            district,
-            parseNumber(input.residents, "residents"),
-            parseDistrict(input.shelter),
-            parseRoute(input.route),
-          );
-          if (!proposed.ok) return proposed;
-          city.focusDistrict(district);
-          return waitForHumanApproval(options?.signal);
-        },
-      });
-    }
-
-    const plan = state.evacuationPlan;
-    if (plan?.authorized && plan.moved < plan.requested && !state.districts.southbank.accessBlocked && state.resources.rescue_bus > 0) {
-      tools.push({
-        name: "execute_evacuation_wave",
-        title: "Execute evacuation wave",
-        description: "Move one authorized wave using one rescue bus. Re-inspect tool availability immediately afterward because route state can change.",
-        inputSchema: { type: "object", properties: {}, additionalProperties: false },
-        execute: () => { const result = simulation.executeEvacuationWave(); if (result.ok) city.launchUnit("rescue_bus", "southbank"); return result; },
-      });
-    }
-
-    if (state.bridgeStatus === "failed" && state.alternateRouteKnown && state.evacuationPlan?.authorized) {
-      tools.push({
-        name: "establish_emergency_crossing",
-        title: "Establish emergency crossing",
-        description: "Choose a verified post-collapse route. Harbor ferry is faster but weakens flood defense; the rail spur preserves pumps but has lower expert-mode capacity.",
-        inputSchema: { type: "object", properties: { route: { type: "string", enum: ["rail_spur", "harbor_ferry"] } }, required: ["route"], additionalProperties: false },
-        execute: (input) => simulation.establishEmergencyCrossing(parseAlternateRoute(input.route)),
-      });
-    }
-  }
-
-  if (state.phase === "success" || state.phase === "failure") {
-    tools.push({ name: "export_after_action_report", title: "Export after-action report", description: "Return the evidence trace, readiness grade, scoring dimensions, policy record, and adaptation latency for this completed run.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true }, execute: () => ({ ok: true, report: afterActionReport(), score: state.scoreBreakdown, metrics: state.metrics }) });
-  }
-
-  return tools;
+      execute: async (input, options) => {
+        const blocked = requireMission(); if (blocked) return blocked;
+        const action = String(input.action);
+        if (action === "open_shelter") {
+          const shelter = parseDistrict(input.shelter); const result = simulation.openShelter(shelter); city.flashDistrict(shelter, result.ok ? "success" : "warning"); return result;
+        }
+        if (action === "execute_wave") return simulation.executeEvacuationWave();
+        if (action === "establish_crossing") return simulation.establishEmergencyCrossing(parseAlternateRoute(input.route));
+        if (action !== "request_plan") return { ok: false, message: "Unknown evacuation action." };
+        const district = parseDistrict(input.district); const proposed = simulation.proposeEvacuation(district, parseNumber(input.residents, "residents"), parseDistrict(input.shelter), parseRoute(input.route));
+        if (!proposed.ok) return proposed; city.focusDistrict(district); return waitForHumanApproval(options?.signal);
+      },
+    },
+    {
+      name: "export_after_action_report",
+      title: "Export report",
+      description: "Return the score and evidence trace after the run ends.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      annotations: { readOnlyHint: true },
+      execute: () => {
+        const state = simulation.snapshot;
+        return state.phase === "success" || state.phase === "failure"
+          ? { ok: true, report: afterActionReport(), score: state.scoreBreakdown, metrics: state.metrics }
+          : { ok: false, message: "After-action evidence is sealed until the run ends." };
+      },
+    },
+  ];
 }
 
 function cityStatus(): Record<string, unknown> {
@@ -1164,6 +1049,7 @@ function cityStatus(): Record<string, unknown> {
       remaining: state.evacuationPlan.requested - state.evacuationPlan.moved,
     } : null,
     resources: state.resources,
+    availableOperations: availableOperations(state),
     observedDistricts,
     unobservedDistricts: districtIds.filter((id) => !observedDistricts.includes(id)),
     activeAlerts: activeAlerts.length,
@@ -1177,11 +1063,25 @@ function cityStatus(): Record<string, unknown> {
       "Only one mobile generator is available.",
       "Rescue buses move residents only through an authorized evacuation wave.",
       "Unsafe power transfers require human approval.",
-      "Capabilities can disappear after world events; re-inspect after every action.",
+      "Operations can lock after world events; re-inspect capability readiness after every action.",
       state.difficulty === "standard" ? "Reasoning latency is not charged; successful operations consume the displayed budget." : "Black Sky uses continuous real-time pressure.",
     ],
     recommendedNext: recommendedNext(state),
   };
+}
+
+function availableOperations(state: Readonly<MissionState>): string[] {
+  const operations = ["inspect_city_status", "forecast_cascade", "scan_district"];
+  if (state.phase !== "active" && state.phase !== "paused") return operations;
+  operations.push("dispatch_response_unit", "deploy_recon_drone");
+  const scanned = districtIds.filter((id) => state.districts[id].scanned);
+  if (scanned.length >= 2) operations.push("manage_grid.reroute", "manage_grid.request_risky_diversion");
+  if (state.resources.mobile_generator > 0 && (["midtown", "eastgate"] as DistrictId[]).some((id) => state.districts[id].scanned)) operations.push("manage_grid.deploy_generator");
+  if (scanned.some((id) => !state.districts[id].shelterOpen)) operations.push("manage_evacuation.open_shelter");
+  if (state.districts.southbank.scanned && scanned.some((id) => state.districts[id].shelterOpen) && !state.evacuationPlan?.authorized) operations.push("manage_evacuation.request_plan");
+  if (state.evacuationPlan?.authorized && !state.districts.southbank.accessBlocked && state.evacuationPlan.moved < state.evacuationPlan.requested && state.resources.rescue_bus > 0) operations.push("manage_evacuation.execute_wave");
+  if (state.bridgeStatus === "failed" && state.alternateRouteKnown && state.evacuationPlan?.authorized) operations.push("manage_evacuation.establish_crossing");
+  return operations;
 }
 
 function recommendedNext(state: Readonly<MissionState>): string[] {
@@ -1207,8 +1107,8 @@ function renderCapabilitySurface(tools: ModelContextTool[], state: Readonly<Miss
   const stage = evacuationComplete ? "MONITOR" : state.bridgeStatus === "failed" ? "RE-PLAN" : state.evacuationPlan?.authorized ? "EXECUTE" : state.phase === "briefing" ? "OBSERVE" : "DISCOVER";
   setText("capability-stage", stage);
   setText("capability-note", state.bridgeStatus === "failed" && !state.alternateRouteKnown
-    ? "Ground execution withdrawn. Aerial evidence can unlock a new route."
-    : `${names.length} tools are registered from state v${state.version}. Tool names and schemas change with the world.`);
+    ? "Evacuation execution locked. Aerial evidence can restore route readiness."
+    : `${names.length} compact tools stay stable. Operations unlock from live state v${state.version} without registry churn.`);
 }
 
 function districtProperty(
