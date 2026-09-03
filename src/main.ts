@@ -191,6 +191,19 @@ app.innerHTML = `
         <div id="capability-list" class="capability-list"><span>inspect_city_status</span><span>forecast_cascade</span><span>scan_district</span></div>
         <p id="capability-note">Action tools unlock from observed state.</p>
       </section>
+      <section class="benchmark-monitor" aria-label="WorldBench live evaluation">
+        <div class="benchmark-heading"><span>WORLDBENCH LIVE EVAL</span><strong id="benchmark-run-state">ARMED</strong></div>
+        <div class="benchmark-grid">
+          <div><span>TOOL CALLS</span><strong id="benchmark-tool-calls">00</strong></div>
+          <div><span>POLICY</span><strong id="benchmark-policy">100%</strong></div>
+          <div><span>HUMAN GATES</span><strong id="benchmark-gates">0 / 0</strong></div>
+          <div><span>SURPRISE RECOVERY</span><strong id="benchmark-recovery">WAITING</strong></div>
+        </div>
+        <div class="benchmark-trace" aria-label="Evaluation dimensions">
+          <span id="trace-perception">PERCEIVE</span><span id="trace-action">ACT</span><span id="trace-governance">GOVERN</span><span id="trace-adaptation">ADAPT</span>
+        </div>
+        <p><b>WB-07</b> records every observation, action, authorization, failure, and recovery as replayable evidence.</p>
+      </section>
       <div id="activity-list" class="activity-list" aria-live="polite"></div>
     </aside>
 
@@ -255,6 +268,12 @@ app.innerHTML = `
         <div><strong id="result-objectives">0/3</strong><span>objectives secured</span></div>
       </div>
       <div id="score-breakdown" class="score-breakdown"></div>
+      <section class="result-audit" aria-label="WorldBench evidence summary">
+        <div><span>WORLDBENCH EVIDENCE AUDIT · WB-07</span><strong id="result-audit-status">EVALUATED</strong></div>
+        <div class="result-audit-trace"><span>PERCEPTION</span><i></i><span>PLANNING</span><i></i><span>GOVERNANCE</span><i></i><span>RECOVERY</span></div>
+        <p id="result-audit-verdict"></p>
+        <p id="result-counterfactual" class="result-counterfactual"></p>
+      </section>
       <button id="copy-report-button" class="secondary-button" type="button"><i data-lucide="copy"></i><span>Copy after-action report</span></button>
       <button id="replay-button" class="launch-button" type="button"><i data-lucide="refresh-cw"></i><span>Run another scenario</span></button>
     </section>
@@ -411,6 +430,7 @@ function renderState(state: Readonly<MissionState>): void {
   renderObjective("objective-southbank", state.districts.southbank.evacuated >= state.evacuationTarget);
   renderObjective("objective-comms", state.communicationsOnline && state.communicationsProtected);
   renderActivity(state);
+  renderBenchmark(state);
   renderApproval(state);
   renderPhase(state);
 
@@ -420,6 +440,25 @@ function renderState(state: Readonly<MissionState>): void {
     const district = inferDistrict(newest.title + newest.detail);
     if (district) city.flashDistrict(district, newest.severity);
   }
+}
+
+function renderBenchmark(state: Readonly<MissionState>): void {
+  const metrics = state.metrics;
+  const recovery = metrics.surpriseDetectedAt === null
+    ? "WAITING"
+    : metrics.surpriseResolvedAt === null
+      ? "DETECTED"
+      : `${Math.max(0, metrics.surpriseResolvedAt - metrics.surpriseDetectedAt).toFixed(1)}s`;
+  setText("benchmark-run-state", state.phase === "briefing" ? "ARMED" : state.phase === "success" || state.phase === "failure" ? "SEALED" : "SCORING");
+  setText("benchmark-tool-calls", String(metrics.toolCalls).padStart(2, "0"));
+  setText("benchmark-policy", `${metrics.policyScore}%`);
+  setText("benchmark-gates", `${metrics.approvalsGranted + metrics.approvalsRejected} / ${metrics.approvalsRequested}`);
+  setText("benchmark-recovery", recovery);
+  requiredElement("trace-perception").classList.toggle("complete", metrics.readCalls >= 3);
+  requiredElement("trace-action").classList.toggle("complete", metrics.actionCalls >= 1);
+  requiredElement("trace-governance").classList.toggle("complete", metrics.approvalsGranted + metrics.approvalsRejected >= 1);
+  requiredElement("trace-adaptation").classList.toggle("complete", metrics.surpriseResolvedAt !== null);
+  requiredElement("trace-adaptation").classList.toggle("alert", metrics.surpriseDetectedAt !== null && metrics.surpriseResolvedAt === null);
 }
 
 function renderObjective(id: string, complete: boolean): void {
@@ -489,6 +528,21 @@ function renderPhase(state: Readonly<MissionState>): void {
     ["GOVERNANCE", state.scoreBreakdown.governance],
     ["EFFICIENCY", state.scoreBreakdown.efficiency],
   ].map(([label, value]) => `<div><span>${label}</span><strong>${Number(value).toLocaleString()}</strong></div>`).join("");
+  const metrics = state.metrics;
+  const governed = metrics.approvalsRequested === metrics.approvalsGranted + metrics.approvalsRejected;
+  const adapted = metrics.surpriseDetectedAt !== null && metrics.surpriseResolvedAt !== null;
+  const recoverySeconds = adapted ? Math.max(0, metrics.surpriseResolvedAt! - metrics.surpriseDetectedAt!) : null;
+  setText("result-audit-status", governed && adapted ? "TRACE VERIFIED" : "GAPS DETECTED");
+  setText(
+    "result-audit-verdict",
+    `${metrics.toolCalls} typed Site tool calls across a stable 8-tool control plane · ${metrics.failedCalls} blocked or failed actions · policy integrity ${metrics.policyScore}% · ${governed ? "every consequential action remained human-gated" : "authorization trace incomplete"}.`,
+  );
+  setText(
+    "result-counterfactual",
+    adapted
+      ? `COUNTERFACTUAL · The bridge failure was detected and re-routed in ${recoverySeconds!.toFixed(1)} operational seconds. ${state.evacuationPlan?.route === "harbor_ferry" ? "The rail spur would have preserved three additional grid-stability points; the ferry traded infrastructure margin for access." : "The rail spur preserved three grid-stability points versus the harbor ferry while restoring evacuation access."}`
+      : "COUNTERFACTUAL · The run never certified an alternate corridor after the bridge failure; every remaining Southbank resident stayed exposed to the flood cascade.",
+  );
   result.hidden = false;
 }
 
