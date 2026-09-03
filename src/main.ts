@@ -336,9 +336,17 @@ const TOOL_LATENCY_MS: Record<string, number> = {
   scan_district: 900,
   dispatch_response_unit: 2800,
   deploy_recon_drone: 2400,
-  manage_grid: 2800,
-  manage_evacuation: 4200,
 };
+
+function operationLatency(toolName: string, input: Record<string, unknown>): number {
+  if (toolName === "manage_grid") {
+    return input.action === "deploy_generator" ? 3600 : input.action === "request_risky_diversion" ? 700 : 2400;
+  }
+  if (toolName === "manage_evacuation") {
+    return input.action === "execute_wave" ? 7600 : input.action === "establish_crossing" ? 3200 : input.action === "open_shelter" ? 2100 : 700;
+  }
+  return TOOL_LATENCY_MS[toolName] ?? 0;
+}
 
 const TOOL_OPERATION_SECONDS: Record<string, number> = {
   inspect_city_status: 1,
@@ -667,7 +675,6 @@ async function runDemoRoute(): Promise<void> {
     if (evacuationApproved) {
       setAgentOperation("EXECUTING WAVE ONE", "Moving one convoy, then re-reading live capability state.", "running");
       await invokeMissionTool("manage_evacuation", { action: "execute_wave" });
-      city.launchUnit("rescue_bus", "southbank");
       await delay(650);
 
       setAgentOperation("SURPRISE · ROUTE LOST", "Meridian Bridge failed. The old execution tool was withdrawn; launching aerial reconnaissance.", "warning");
@@ -678,7 +685,6 @@ async function runDemoRoute(): Promise<void> {
 
       setAgentOperation("RE-PLANNED · WAVE TWO", "The new route unlocked evacuation execution again.", "running");
       await invokeMissionTool("manage_evacuation", { action: "execute_wave" });
-      city.launchUnit("rescue_bus", "southbank");
     }
 
     setAgentOperation(
@@ -854,7 +860,7 @@ function withExecutionTracking(tool: ModelContextTool): ModelContextTool {
       }
       try {
         const result = await tool.execute(input, options);
-        const latency = TOOL_LATENCY_MS[tool.name] ?? 0;
+        const latency = operationLatency(tool.name, input);
         if (latency > 0) await delay(latency);
         advanceOperationBudget(tool.name, result);
         if (mutating) {
