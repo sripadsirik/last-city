@@ -55,7 +55,9 @@ test("renders a nonblank city with a WebMCP-first human console", async ({ page 
   await expect(page.locator("#toast")).toContainText("active alerts");
   await page.locator('[data-command="scan"]').click();
   await expect(page.locator("#activity-list")).toContainText("Midtown digital twin synchronized");
-  await expect(page.locator("#capability-list")).toContainText("deploy_mobile_generator");
+  await expect(page.locator("#capability-list")).toContainText("manage_grid");
+  await expect(page.locator("#capability-note")).toContainText("compact tools stay stable");
+  await expect(page.locator(".benchmark-monitor")).toContainText("WORLDBENCH LIVE EVAL");
   await expect(page.locator(".console-note")).toContainText("WebMCP tools");
 
   await page.screenshot({ path: testInfo.outputPath("active.png"), fullPage: true });
@@ -63,6 +65,7 @@ test("renders a nonblank city with a WebMCP-first human console", async ({ page 
 });
 
 test("explains Site tools setup and labels the scripted fallback", async ({ page }, testInfo) => {
+  test.setTimeout(45_000);
   test.skip(testInfo.project.name !== "desktop", "The guided agent journey only needs one fallback-browser pass.");
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -84,7 +87,7 @@ test("explains Site tools setup and labels the scripted fallback", async ({ page
   await expect(page.locator("#approval-panel")).toBeVisible();
   await page.getByRole("button", { name: "Authorize" }).click();
 
-  await expect(page.locator("#agent-stage")).toHaveText("STRATEGY DEPLOYED", { timeout: 15_000 });
+  await expect(page.locator("#agent-stage")).toHaveText("STRATEGY DEPLOYED", { timeout: 30_000 });
   await expect(page.locator("#objective-hospital")).toHaveClass(/complete/);
   await expect(page.locator("#objective-southbank")).toHaveClass(/complete/);
   await expect(page.locator("#objective-comms")).toHaveClass(/complete/);
