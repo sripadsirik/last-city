@@ -35,7 +35,7 @@ async function executeTool(page: Page, name: string, input: Record<string, unkno
 }
 
 test("adapts through a stable native WebMCP control plane and real human authorization", async ({ page }, testInfo) => {
-  test.setTimeout(60_000);
+  test.setTimeout(90_000);
   await page.goto("/");
   await expect(page.locator("#webmcp-status")).toContainText("Site tools live");
   const stableTools = ["deploy_recon_drone", "dispatch_response_unit", "export_after_action_report", "forecast_cascade", "inspect_city_status", "manage_evacuation", "manage_grid", "scan_district"];
@@ -69,7 +69,11 @@ test("adapts through a stable native WebMCP control plane and real human authori
   expect((await pendingEvacuation).ok).toBe(true);
 
   expect((await executeTool(page, "inspect_city_status")).availableOperations).toContain("manage_evacuation.execute_wave");
-  const firstWave = await executeTool(page, "manage_evacuation", { action: "execute_wave" });
+  const pendingFirstWave = executeTool(page, "manage_evacuation", { action: "execute_wave" });
+  await expect(page.locator(".world-operation")).toHaveClass(/active/);
+  await expect(page.locator(".world-operation strong")).toContainText(/ASSEMBLING|BOARDING|IN TRANSIT/);
+  await page.screenshot({ path: testInfo.outputPath("evacuation-field-operation.png"), fullPage: true });
+  const firstWave = await pendingFirstWave;
   expect(firstWave.ok).toBe(true);
   expect((await executeTool(page, "inspect_city_status")).availableOperations).not.toContain("manage_evacuation.execute_wave");
   await expect.poll(() => toolNames(page)).toEqual(stableTools);
@@ -91,6 +95,9 @@ test("adapts through a stable native WebMCP control plane and real human authori
     protectCommunications: true,
   });
   await expect(page.locator("#capability-note")).toContainText("compact tools stay stable");
+  await expect(page.locator("#benchmark-run-state")).toHaveText("SEALED");
+  await expect(page.locator("#result-audit-status")).toHaveText("TRACE VERIFIED");
+  await expect(page.locator("#result-audit-verdict")).toContainText("stable 8-tool control plane");
   await expect(page.locator("#result-panel")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("native-webmcp-adapted.png"), fullPage: true });
   await page.setViewportSize({ width: 1_200, height: 630 });
