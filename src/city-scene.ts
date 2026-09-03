@@ -77,6 +77,7 @@ export class CityScene {
   private animationFrame = 0;
   private pulseTime = 0;
   private currentState: Readonly<MissionState> | null = null;
+  private lastEvacuated = 0;
 
   constructor(host: HTMLElement) {
     this.host = host;
@@ -124,7 +125,8 @@ export class CityScene {
   }
 
   sync(state: Readonly<MissionState>): void {
-    const previousEvacuated = this.currentState?.districts.southbank.evacuated ?? state.districts.southbank.evacuated;
+    const previousEvacuated = this.lastEvacuated;
+    this.lastEvacuated = state.districts.southbank.evacuated;
     this.currentState = state;
     for (const [id, visual] of this.districtVisuals) {
       const district = state.districts[id];
