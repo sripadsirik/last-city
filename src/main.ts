@@ -739,6 +739,13 @@ async function runDemoRoute(): Promise<void> {
 
       setAgentOperation("RE-PLANNED · WAVE TWO", "The new route unlocked evacuation execution again.", "running");
       await invokeMissionTool("manage_evacuation", { action: "execute_wave" });
+      while (
+        simulation.snapshot.districts.southbank.evacuated < simulation.snapshot.evacuationTarget
+        && simulation.snapshot.resources.rescue_bus > 0
+      ) {
+        setAgentOperation("ADAPTIVE CONVOY", "The prior route failed before moving residents. Reissuing the remaining authorized wave on the verified rail corridor.", "running");
+        await invokeMissionTool("manage_evacuation", { action: "execute_wave" });
+      }
     }
 
     setAgentOperation(
@@ -775,7 +782,7 @@ async function invokeMissionTool(name: string, input: Record<string, unknown> = 
   const fallbackTool = buildTools(simulation.snapshot).find((tool) => tool.name === name);
   if (!fallbackTool) throw new Error(`Guided mission tool is unavailable: ${name}`);
   const result = await fallbackTool.execute(input);
-  if (name === "manage_evacuation" && input.action === "execute_wave") {
+  if (name === "manage_evacuation" && input.action === "execute_wave" && (result as ActionResult).ok !== false) {
     await delay(operationLatency(name, input));
   }
   advanceOperationBudget(name, result);
