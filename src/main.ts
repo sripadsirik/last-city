@@ -775,6 +775,9 @@ async function invokeMissionTool(name: string, input: Record<string, unknown> = 
   const fallbackTool = buildTools(simulation.snapshot).find((tool) => tool.name === name);
   if (!fallbackTool) throw new Error(`Guided mission tool is unavailable: ${name}`);
   const result = await fallbackTool.execute(input);
+  if (name === "manage_evacuation" && input.action === "execute_wave") {
+    await delay(operationLatency(name, input));
+  }
   advanceOperationBudget(name, result);
   return result;
 }
