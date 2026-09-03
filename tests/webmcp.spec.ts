@@ -8,8 +8,15 @@ interface NativeModelContext {
 interface ToolResult {
   ok?: boolean;
   phase?: string;
+  secondsRemaining?: number;
   bridgeStatus?: string;
   availableOperations?: string[];
+  operationCostSeconds?: number;
+  postActionState?: {
+    secondsRemaining: number;
+    southbankEvacuated: number;
+    availableOperations: string[];
+  };
   objectives?: {
     secureHospitalPowerAndFire: boolean;
     evacuateSouthbank: boolean;
@@ -47,11 +54,18 @@ test("adapts through a stable native WebMCP control plane and real human authori
   await expect(page.locator("#timer")).toHaveText("01:30");
   await page.waitForTimeout(2_500);
   await expect(page.locator("#timer")).toHaveText("01:30");
+  for (let observation = 0; observation < 6; observation += 1) {
+    await executeTool(page, "inspect_city_status");
+  }
+  await expect(page.locator("#timer")).toHaveText("01:30");
   await expect.poll(() => toolNames(page)).toEqual(stableTools);
 
   await executeTool(page, "scan_district", { district: "midtown" });
   await executeTool(page, "scan_district", { district: "northgrid" });
-  expect((await executeTool(page, "manage_grid", { action: "reroute", from: "northgrid", to: "midtown", amountPercent: 23 })).ok).toBe(true);
+  const reroute = await executeTool(page, "manage_grid", { action: "reroute", from: "northgrid", to: "midtown", amountPercent: 23 });
+  expect(reroute.ok).toBe(true);
+  expect(reroute.operationCostSeconds).toBe(5);
+  expect(reroute.postActionState?.secondsRemaining).toBeGreaterThan(75);
   expect((await executeTool(page, "dispatch_response_unit", { unit: "fire_engine", district: "midtown" })).ok).toBe(true);
   await expect(page.locator("#objective-hospital")).toHaveClass(/complete/);
 
@@ -94,6 +108,7 @@ test("adapts through a stable native WebMCP control plane and real human authori
     evacuateSouthbank: true,
     protectCommunications: true,
   });
+  expect(secured.secondsRemaining).toBeGreaterThanOrEqual(35);
   await expect(page.locator("#capability-note")).toContainText("compact tools stay stable");
   await expect(page.locator("#benchmark-run-state")).toHaveText("SEALED");
   await expect(page.locator("#result-audit-status")).toHaveText("TRACE VERIFIED");
