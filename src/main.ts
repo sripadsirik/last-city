@@ -65,7 +65,7 @@ declare global {
 }
 
 const DIRECTIVE =
-  "Act as my incident agent. Use the live WebMCP tools—not screen clicks—to keep Mercy Hospital powered and fire-safe, evacuate Southbank to a powered shelter, and keep Eastgate communications online. Standard mode uses a 90-second operational budget that advances only when tools act, so inspect the current state and execute the mission. Preserve scarce units, re-plan when conditions change, and explain every irreversible tradeoff before requesting my approval.";
+  "Act as my incident agent. Use the live WebMCP tools—not screen clicks—to keep Mercy Hospital powered and fire-safe, evacuate Southbank to a powered shelter, and keep Eastgate communications online. Standard mode has a 90-second field-operation budget: observations, planning, and human review are free; physical actions consume the stated cost. Execute routine resource allocations without conversational approval. Only stop when a tool returns humanAuthorizationRequired. Use each action's postActionState instead of repeating inspection, re-plan when conditions change, and complete every objective.";
 
 const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("Application root is missing.");
@@ -367,15 +367,24 @@ function operationLatency(toolName: string, input: Record<string, unknown>): num
   return TOOL_LATENCY_MS[toolName] ?? 0;
 }
 
-const TOOL_OPERATION_SECONDS: Record<string, number> = {
-  inspect_city_status: 1,
-  forecast_cascade: 2,
-  scan_district: 4,
-  dispatch_response_unit: 8,
-  deploy_recon_drone: 6,
-  manage_grid: 7,
-  manage_evacuation: 7,
-};
+function operationSeconds(toolName: string, input: Record<string, unknown> = {}): number {
+  if (toolName === "inspect_city_status" || toolName === "export_after_action_report") return 0;
+  if (toolName === "forecast_cascade") return 0;
+  if (toolName === "scan_district") return 2;
+  if (toolName === "dispatch_response_unit") return 6;
+  if (toolName === "deploy_recon_drone") return 4;
+  if (toolName === "manage_grid") {
+    if (input.action === "request_risky_diversion") return 0;
+    return 5;
+  }
+  if (toolName === "manage_evacuation") {
+    if (input.action === "request_plan") return 0;
+    if (input.action === "open_shelter") return 3;
+    if (input.action === "establish_crossing") return 4;
+    if (input.action === "execute_wave") return 8;
+  }
+  return 0;
+}
 
 simulation.subscribe((state) => {
   renderState(state);
@@ -785,7 +794,7 @@ async function invokeMissionTool(name: string, input: Record<string, unknown> = 
   if (name === "manage_evacuation" && input.action === "execute_wave" && (result as ActionResult).ok !== false) {
     await delay(operationLatency(name, input));
   }
-  advanceOperationBudget(name, result);
+  advanceOperationBudget(name, result, input);
   return result;
 }
 
@@ -926,7 +935,7 @@ function withExecutionTracking(tool: ModelContextTool): ModelContextTool {
         const result = await tool.execute(input, options);
         const latency = operationLatency(tool.name, input);
         if (latency > 0) await delay(latency);
-        advanceOperationBudget(tool.name, result);
+        const chargedSeconds = advanceOperationBudget(tool.name, result, input);
         if (mutating) {
           const outcome = result && typeof result === "object" ? result as ActionResult : null;
           setAgentOperation(
@@ -935,7 +944,7 @@ function withExecutionTracking(tool: ModelContextTool): ModelContextTool {
             outcome?.ok === false ? "warning" : "complete",
           );
         }
-        return result;
+        return mutating ? postActionResult(result, chargedSeconds) : result;
       } finally {
         if (mutating && activeMutation === tool.name) activeMutation = null;
         const remaining = Math.max(0, (activeToolExecutions.get(tool.name) ?? 1) - 1);
@@ -947,13 +956,37 @@ function withExecutionTracking(tool: ModelContextTool): ModelContextTool {
   };
 }
 
-function advanceOperationBudget(toolName: string, result: unknown): void {
+function advanceOperationBudget(toolName: string, result: unknown, input: Record<string, unknown> = {}): number {
   const state = simulation.snapshot;
-  if (state.difficulty !== "standard" || state.phase !== "active") return;
+  if (state.difficulty !== "standard" || state.phase !== "active") return 0;
   const outcome = result && typeof result === "object" ? result as { ok?: unknown } : null;
-  const plannedSeconds = TOOL_OPERATION_SECONDS[toolName] ?? 0;
-  const chargedSeconds = outcome?.ok === false ? Math.min(2, plannedSeconds) : plannedSeconds;
+  const plannedSeconds = operationSeconds(toolName, input);
+  const chargedSeconds = outcome?.ok === false ? Math.min(1, plannedSeconds) : plannedSeconds;
   if (chargedSeconds > 0) simulation.tick(chargedSeconds);
+  return chargedSeconds;
+}
+
+function postActionResult(result: unknown, chargedSeconds: number): unknown {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return result;
+  const state = simulation.snapshot;
+  return {
+    ...result as Record<string, unknown>,
+    operationCostSeconds: chargedSeconds,
+    postActionState: {
+      stateVersion: state.version,
+      phase: state.phase,
+      secondsRemaining: Math.max(0, Math.ceil(state.duration - state.elapsed)),
+      objectives: {
+        hospital: state.hospitalStabilized && state.hospitalFireContained,
+        southbank: state.districts.southbank.evacuated >= state.evacuationTarget,
+        communications: state.communicationsOnline && state.communicationsProtected,
+      },
+      southbankEvacuated: state.districts.southbank.evacuated,
+      bridgeStatus: state.bridgeStatus,
+      availableOperations: availableOperations(state),
+      recommendedNextActions: recommendedNext(state),
+    },
+  };
 }
 
 function buildTools(_state: Readonly<MissionState>): ModelContextTool[] {
@@ -977,7 +1010,7 @@ function buildTools(_state: Readonly<MissionState>): ModelContextTool[] {
     {
       name: "scan_district",
       title: "Scan district",
-      description: "Reveal one district's hazards and infrastructure dependencies before committing resources.",
+      description: "Reveal one district's hazards and infrastructure dependencies before committing resources. Costs 2 field-operation seconds; repeated status inspection is free.",
       inputSchema: districtSchema(),
       execute: (input) => {
         const blocked = requireMission(); if (blocked) return blocked;
@@ -996,7 +1029,7 @@ function buildTools(_state: Readonly<MissionState>): ModelContextTool[] {
     {
       name: "dispatch_response_unit",
       title: "Dispatch unit",
-      description: "Send one scarce ambulance or fire engine to a scanned, reachable district.",
+      description: "Send one scarce ambulance or fire engine to a scanned, reachable district. Costs 6 field-operation seconds. This is a routine allocation: execute it without conversational approval. The result includes verified post-action state.",
       inputSchema: { type: "object", properties: { unit: { type: "string", enum: ["ambulance", "fire_engine"] }, district: districts }, required: ["unit", "district"], additionalProperties: false },
       execute: (input) => {
         const blocked = requireMission(); if (blocked) return blocked;
@@ -1007,7 +1040,7 @@ function buildTools(_state: Readonly<MissionState>): ModelContextTool[] {
     {
       name: "deploy_recon_drone",
       title: "Deploy drone",
-      description: "Consume a drone to map hazards and discover alternate access after a route failure.",
+      description: "Consume a drone to map hazards and discover alternate access after a route failure. Costs 4 field-operation seconds. This is a routine allocation: execute it without conversational approval. The result includes verified post-action state.",
       inputSchema: districtSchema(),
       execute: (input) => {
         const blocked = requireMission(); if (blocked) return blocked;
@@ -1018,11 +1051,11 @@ function buildTools(_state: Readonly<MissionState>): ModelContextTool[] {
     {
       name: "manage_grid",
       title: "Manage grid",
-      description: "Reroute power, deploy the sole generator, or request human approval for essential-load shedding.",
+      description: "Reroute power or deploy the generator without conversational approval; use request_risky_diversion only for essential-load shedding that requires a tool-enforced human decision. Every result includes verified post-action state and remaining field time.",
       inputSchema: {
         type: "object",
         properties: {
-          action: { type: "string", enum: ["reroute", "deploy_generator", "request_risky_diversion"], description: "Grid operation to attempt." },
+          action: { type: "string", enum: ["reroute", "deploy_generator", "request_risky_diversion"], description: "Grid operation: reroute 5s, deploy_generator 5s, request_risky_diversion 0s." },
           from: { ...districts, description: "Required donor district for power transfers." },
           to: { ...districts, description: "Transfer destination or generator target." },
           amountPercent: { type: "integer", minimum: 5, maximum: 35, description: "Required for power transfers." },
@@ -1045,11 +1078,11 @@ function buildTools(_state: Readonly<MissionState>): ModelContextTool[] {
     {
       name: "manage_evacuation",
       title: "Manage evacuation",
-      description: "Open shelter capacity, request human approval, execute one convoy, or establish an alternate crossing.",
+      description: "Open shelter capacity, request the one tool-enforced human approval for population movement, execute one convoy, or establish an alternate crossing. Do not ask for separate conversational approval. Every result includes verified post-action state and remaining field time.",
       inputSchema: {
         type: "object",
         properties: {
-          action: { type: "string", enum: ["open_shelter", "request_plan", "execute_wave", "establish_crossing"], description: "Evacuation operation to attempt." },
+          action: { type: "string", enum: ["open_shelter", "request_plan", "execute_wave", "establish_crossing"], description: "Evacuation operation: open_shelter 3s, request_plan 0s, execute_wave 8s, establish_crossing 4s." },
           district: { ...districts, description: "Required source district for request_plan." },
           shelter: { ...districts, description: "Required for open_shelter and request_plan." },
           route: { type: "string", enum: ["meridian_bridge", "rail_spur", "harbor_ferry"], description: "Required for request_plan and establish_crossing." },
@@ -1094,7 +1127,7 @@ function cityStatus(): Record<string, unknown> {
     phase: state.phase,
     difficulty: state.difficulty,
     clockPolicy: state.difficulty === "standard"
-      ? "90-second operational budget; advances only when a tool executes, never during model reasoning or human approval review"
+      ? "90-second field-operation budget; observations, planning, and human review are free; only physical actions consume their stated cost"
       : "75-second continuous wall clock; use pause only for explicit human intervention",
     stateVersion: state.version,
     secondsRemaining: Math.max(0, Math.ceil(state.duration - state.elapsed)),
@@ -1133,8 +1166,9 @@ function cityStatus(): Record<string, unknown> {
       "Only one mobile generator is available.",
       "Rescue buses move residents only through an authorized evacuation wave.",
       "Unsafe power transfers require human approval.",
-      "Operations can lock after world events; re-inspect capability readiness after every action.",
-      state.difficulty === "standard" ? "Reasoning latency is not charged; successful operations consume the displayed budget." : "Black Sky uses continuous real-time pressure.",
+      "Every mutating result contains verified postActionState; use it instead of redundant inspection unless state is ambiguous.",
+      "Only tool-enforced humanAuthorizationRequired responses need approval; routine unit and generator allocations do not.",
+      state.difficulty === "standard" ? "Reasoning and observation are not charged; successful physical operations consume the displayed budget." : "Black Sky uses continuous real-time pressure.",
     ],
     recommendedNext: recommendedNext(state),
   };
