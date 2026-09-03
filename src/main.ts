@@ -65,7 +65,7 @@ declare global {
 }
 
 const DIRECTIVE =
-  "Act as my incident agent. Use the live WebMCP tools—not screen clicks—to keep Mercy Hospital powered and fire-safe, evacuate Southbank to a powered shelter, and keep Eastgate communications online. Standard mode has a 90-second field-operation budget: observations, planning, and human review are free; physical actions consume the stated cost. Execute routine resource allocations without conversational approval. Only stop when a tool returns humanAuthorizationRequired. Use each action's postActionState instead of repeating inspection, re-plan when conditions change, and complete every objective.";
+  "Act as my incident agent. Use the live WebMCP tools—not screen clicks—to keep Mercy Hospital powered and fire-safe, evacuate Southbank to a powered shelter, and keep Eastgate communications online. Standard mode has a 90-second field-operation budget: observations, planning, and human review are free; physical actions consume the stated cost. Execute routine resource allocations without conversational approval. Only stop when a tool itself opens the visible human-authorization gate. Use each action's postActionState instead of repeating inspection, re-plan when conditions change, and complete every objective.";
 
 const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("Application root is missing.");
@@ -238,7 +238,7 @@ app.innerHTML = `
         <h1>THE GRID FAILS<br />IN <em>NINETY SECONDS.</em></h1>
         <p>Test an incident agent against a live infrastructure cascade. It handles rapid triage and reversible logistics; you retain authority over decisions that put people in motion.</p>
         <div class="difficulty-switch" role="group" aria-label="Scenario difficulty">
-          <button class="active" type="button" data-difficulty="standard"><strong>STANDARD</strong><span>90 ops sec · latency-neutral</span></button>
+          <button class="active" type="button" data-difficulty="standard"><strong>STANDARD</strong><span>90 field sec · observations free</span></button>
           <button type="button" data-difficulty="expert"><strong>BLACK SKY</strong><span>75 real sec · live pressure</span></button>
         </div>
         <div class="briefing-objectives">
@@ -507,7 +507,7 @@ function renderPhase(state: Readonly<MissionState>): void {
   pauseButton.disabled = state.difficulty === "standard";
   pauseButton.innerHTML = state.phase === "paused" ? '<i data-lucide="play"></i>' : '<i data-lucide="pause"></i>';
   pauseButton.title = state.difficulty === "standard"
-    ? "Standard mode advances only when an operation executes"
+    ? "Observations are free; only physical field operations advance the clock"
     : state.phase === "paused" ? "Resume simulation" : "Pause simulation";
   pauseButton.setAttribute("aria-label", pauseButton.title);
   createIcons({ icons: { Pause, Play }, attrs: { "stroke-width": 1.8 } });
