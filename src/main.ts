@@ -75,13 +75,18 @@ app.innerHTML = `
     <div id="scene" class="scene" aria-hidden="true"></div>
     <div class="scanlines" aria-hidden="true"></div>
     <div class="storm-vignette" aria-hidden="true"></div>
+    <div class="weather-stamp" aria-hidden="true">
+      <span>STORM CELL 07</span>
+      <strong>LAST CITY · 02:17</strong>
+      <i></i>
+    </div>
 
     <header class="topbar">
       <div class="brand-lockup">
         <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
         <div>
           <strong>LAST CITY</strong>
-          <span>Emergency AI Readiness</span>
+          <span>Joint Incident Command</span>
         </div>
       </div>
 
@@ -107,28 +112,28 @@ app.innerHTML = `
 
     <aside class="mission-rail">
       <div class="rail-heading">
-        <span>MISSION 07</span>
-        <strong>STORMBREAK</strong>
+        <span>ACTIVE INCIDENT</span>
+        <strong>Stormbreak</strong>
       </div>
 
       <section class="rail-section objectives" aria-labelledby="objectives-heading">
-        <div class="section-label" id="objectives-heading">PRIMARY OBJECTIVES</div>
+        <div class="section-label" id="objectives-heading">MISSION PRIORITIES</div>
         <div id="objective-hospital" class="objective-row">
           <span class="objective-state"><i data-lucide="hospital"></i></span>
-          <div><strong>Secure Mercy Hospital</strong><span>Resilient power + fire control</span></div>
+          <div><strong>Mercy Hospital</strong><span>Restore power · contain fire</span></div>
         </div>
         <div id="objective-southbank" class="objective-row">
           <span class="objective-state"><i data-lucide="waves"></i></span>
-          <div><strong>Clear Southbank</strong><span id="evac-target-label">1,800 resident threshold</span></div>
+          <div><strong>Southbank</strong><span id="evac-target-label">Evacuate 1,800 residents</span></div>
         </div>
         <div id="objective-comms" class="objective-row">
           <span class="objective-state"><i data-lucide="radio"></i></span>
-          <div><strong>Protect Eastgate Relay</strong><span>Maintain communications</span></div>
+          <div><strong>Eastgate Relay</strong><span>Keep communications online</span></div>
         </div>
       </section>
 
       <section class="rail-section telemetry" aria-labelledby="telemetry-heading">
-        <div class="section-label" id="telemetry-heading">CITY TELEMETRY</div>
+        <div class="section-label" id="telemetry-heading">LIVE CITY STATUS</div>
         <div class="metric-block">
           <div><span>Grid stability</span><strong id="grid-value">58%</strong></div>
           <div class="metric-track"><span id="grid-bar" class="grid-bar"></span></div>
@@ -144,7 +149,7 @@ app.innerHTML = `
       </section>
 
       <section class="rail-section resources" aria-labelledby="resources-heading">
-        <div class="section-label" id="resources-heading">AVAILABLE UNITS</div>
+        <div class="section-label" id="resources-heading">RESPONSE UNITS</div>
         <div class="resource-grid">
           <div title="Ambulances"><i data-lucide="ambulance"></i><strong id="ambulance-count">2</strong></div>
           <div title="Rescue buses"><i data-lucide="bus"></i><strong id="bus-count">2</strong></div>
@@ -155,13 +160,13 @@ app.innerHTML = `
       </section>
 
       <section class="rail-section command-deck" aria-labelledby="command-heading">
-        <div class="section-label" id="command-heading">HUMAN CONSOLE · READ ONLY</div>
+        <div class="section-label" id="command-heading">HUMAN OVERSIGHT</div>
         <div class="command-grid">
           <button type="button" data-command="status" title="Inspect live mission status"><i data-lucide="activity"></i><span>STATUS</span></button>
           <button type="button" data-command="forecast" title="Preview cascade forecast"><i data-lucide="route"></i><span>FORECAST</span></button>
           <button type="button" data-command="scan" title="Synchronize Midtown telemetry"><i data-lucide="scan-line"></i><span>SCAN</span></button>
         </div>
-        <p class="console-note">The human can inspect, pause, and authorize. Operational controls are exposed to the browser agent as typed WebMCP tools.</p>
+        <p class="console-note">You inspect and authorize. The incident agent acts through typed WebMCP tools.</p>
       </section>
     </aside>
 
@@ -177,17 +182,17 @@ app.innerHTML = `
     <aside class="activity-rail">
       <div class="activity-header">
         <div>
-          <span>LIVE OPERATIONS</span>
-          <strong>Joint Activity</strong>
+          <span>INCIDENT FEED</span>
+          <strong>Agent operations</strong>
         </div>
         <div id="tool-count" class="tool-count"><i data-lucide="bot"></i><span>0 tools</span></div>
       </div>
       <div id="agent-operation" class="agent-operation idle">
-        <div><span id="agent-channel">GUIDED ENGINE</span><strong id="agent-stage">AGENT STANDBY</strong></div>
-        <p id="agent-detail">Waiting for the incident commander to deploy the response agent.</p>
+        <div><span id="agent-channel">COMMAND LINK</span><strong id="agent-stage">AGENT STANDBY</strong></div>
+        <p id="agent-detail">Connect an incident agent to begin coordinated response.</p>
       </div>
       <section class="capability-monitor" aria-label="Live WebMCP capability monitor">
-        <div><span>LIVE CAPABILITY SURFACE</span><strong id="capability-stage">OBSERVE</strong></div>
+        <div><span>WEBMCP CONTROL PLANE</span><strong id="capability-stage">OBSERVE</strong></div>
         <div id="capability-list" class="capability-list"><span>inspect_city_status</span><span>forecast_cascade</span><span>scan_district</span></div>
         <p id="capability-note">Action tools unlock from observed state.</p>
       </section>
@@ -224,22 +229,22 @@ app.innerHTML = `
     <footer class="directive-bar">
       <div class="agent-avatar"><i data-lucide="bot"></i><span class="agent-pulse"></span></div>
       <div class="directive-copy">
-        <span>ACTIVE DIRECTIVE</span>
+        <span>MISSION FOR YOUR AGENT</span>
         <p id="directive-text">${DIRECTIVE}</p>
       </div>
       <button id="copy-directive" class="icon-button" type="button" title="Copy mission directive" aria-label="Copy mission directive"><i data-lucide="copy"></i></button>
-      <button id="demo-button" class="primary-button" type="button"><i data-lucide="radio"></i><span>Connect AI agent</span></button>
+      <button id="demo-button" class="primary-button" type="button"><i data-lucide="radio"></i><span>Connect agent</span></button>
     </footer>
 
     <section id="briefing" class="briefing-band">
-      <div class="briefing-index">07</div>
+      <div class="briefing-index"><span>07</span><small>STORMBREAK</small></div>
       <div class="briefing-main">
-        <span class="eyebrow">EMERGENCY AI READINESS EXERCISE</span>
-        <h1>THE GRID FAILS<br />IN <em>NINETY SECONDS.</em></h1>
-        <p>Test an incident agent against a live infrastructure cascade. It handles rapid triage and reversible logistics; you retain authority over decisions that put people in motion.</p>
+        <span class="eyebrow">LIVE AGENT READINESS EXERCISE</span>
+        <h1>A CITY<br />IN THE <em>DARK.</em></h1>
+        <p><strong>You set the mission. Your AI agent runs the response.</strong> Keep a hospital alive, move 1,800 residents, and hold the communications grid while the storm changes the plan.</p>
         <div class="difficulty-switch" role="group" aria-label="Scenario difficulty">
-          <button class="active" type="button" data-difficulty="standard"><strong>STANDARD</strong><span>90 field sec · observations free</span></button>
-          <button type="button" data-difficulty="expert"><strong>BLACK SKY</strong><span>75 real sec · live pressure</span></button>
+          <button class="active" type="button" data-difficulty="standard"><strong>STANDARD RESPONSE</strong><span>90 operational seconds</span></button>
+          <button type="button" data-difficulty="expert"><strong>BLACK SKY</strong><span>75 seconds · no pause</span></button>
         </div>
         <div class="briefing-objectives">
           <span><i data-lucide="hospital"></i> Hospital online</span>
@@ -247,19 +252,20 @@ app.innerHTML = `
           <span><i data-lucide="radio"></i> Relay protected</span>
         </div>
         <div id="briefing-agent-status" class="briefing-agent-status"><i data-lucide="radio"></i><span>Open in ChatGPT Desktop to activate Site tools</span></div>
-        <button id="start-button" class="launch-button" type="button"><i data-lucide="siren"></i><span>Enter joint command</span><i data-lucide="chevron-right"></i></button>
+        <button id="start-button" class="launch-button" type="button" aria-label="Enter joint command"><i data-lucide="siren"></i><span>Begin crisis</span><i data-lucide="chevron-right"></i></button>
       </div>
       <div class="briefing-signal" aria-hidden="true">
+        <div class="briefing-map-label"><span>LIVE CONDITIONS</span><strong>SUPERSTORM / GRID CASCADE</strong></div>
         <div class="signal-ring ring-a"></div>
         <div class="signal-ring ring-b"></div>
-        <div class="signal-ring ring-c"></div>
         <div class="signal-core"><i data-lucide="crosshair"></i></div>
+        <div class="briefing-readout"><span>6,400</span><small>residents at risk</small><span>3</span><small>critical systems</small></div>
       </div>
     </section>
 
     <section id="result-panel" class="result-panel" hidden>
-      <span id="result-eyebrow">MISSION COMPLETE</span>
-      <strong id="result-title">CRISIS CONTAINED</strong>
+      <span id="result-eyebrow">RUN COMPLETE</span>
+      <strong id="result-title">Crisis contained</strong>
       <div class="result-score"><span id="result-score">0000</span><small>FINAL SCORE</small></div>
       <div class="result-grade"><span id="result-grade">D</span><small>AGENT READINESS</small></div>
       <div class="result-stats">
@@ -269,7 +275,7 @@ app.innerHTML = `
       </div>
       <div id="score-breakdown" class="score-breakdown"></div>
       <section class="result-audit" aria-label="WorldBench evidence summary">
-        <div><span>WORLDBENCH EVIDENCE AUDIT · WB-07</span><strong id="result-audit-status">EVALUATED</strong></div>
+        <div><span>VERIFIED RUN EVIDENCE · LC-07</span><strong id="result-audit-status">EVALUATED</strong></div>
         <div class="result-audit-trace"><span>PERCEPTION</span><i></i><span>PLANNING</span><i></i><span>GOVERNANCE</span><i></i><span>RECOVERY</span></div>
         <p id="result-audit-verdict"></p>
         <p id="result-counterfactual" class="result-counterfactual"></p>
@@ -280,9 +286,9 @@ app.innerHTML = `
 
     <section id="connection-panel" class="connection-panel" role="dialog" aria-modal="true" aria-labelledby="connection-title" hidden>
       <button id="close-connection" class="connection-close" type="button" aria-label="Close connection guide"><i data-lucide="x"></i></button>
-      <span class="eyebrow">SITE TOOLS · NATIVE WEBMCP</span>
-      <strong id="connection-title">PUT AN AGENT IN THE COMMAND CHAIR</strong>
-      <p>This city is the interface. ChatGPT supplies the incident commander through tools registered by this page.</p>
+      <span class="eyebrow">NATIVE WEBMCP · SITE TOOLS</span>
+      <strong id="connection-title">Connect your incident agent</strong>
+      <p>The city stays visible to you while ChatGPT operates it through structured tools registered by this page.</p>
       <ol class="connection-steps">
         <li><span>01</span><div><strong>Use ChatGPT Desktop</strong><p>Update to the latest app and open this URL in its integrated browser.</p></div></li>
         <li><span>02</span><div><strong>Select GPT-5.6 Sol or Terra</strong><p>Site tools are currently unavailable with Luna and in Enterprise or Edu workspaces.</p></div></li>
