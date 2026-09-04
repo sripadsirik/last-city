@@ -31,6 +31,7 @@ interface MovingUnit {
   airborne: boolean;
   label: string;
   destination: string;
+  districtId: DistrictId;
 }
 
 interface TransientPerson { mesh: THREE.Group; start: THREE.Vector3; end: THREE.Vector3 }
@@ -43,6 +44,16 @@ interface EvacuationOperation {
   duration: number;
   moved: number;
   destination: string;
+  shelterId: DistrictId;
+}
+
+interface CameraMove {
+  fromPosition: THREE.Vector3;
+  toPosition: THREE.Vector3;
+  fromTarget: THREE.Vector3;
+  toTarget: THREE.Vector3;
+  startedAt: number;
+  duration: number;
 }
 
 const DISTRICT_LAYOUT: Record<DistrictId, { x: number; z: number; color: number }> = {
@@ -74,6 +85,7 @@ export class CityScene {
   private readonly commandCenter = new THREE.Vector3(0, 1, 13);
   private readonly operationHud: HTMLDivElement;
   private evacuationOperation: EvacuationOperation | null = null;
+  private cameraMove: CameraMove | null = null;
   private animationFrame = 0;
   private pulseTime = 0;
   private currentState: Readonly<MissionState> | null = null;
@@ -86,7 +98,7 @@ export class CityScene {
     this.renderer.setSize(host.clientWidth, host.clientHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.28;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.domElement.setAttribute("aria-label", "Interactive three-dimensional crisis map of Last City");
@@ -96,18 +108,19 @@ export class CityScene {
     this.operationHud.innerHTML = '<span>FIELD OPERATION</span><strong>STANDBY</strong><p>Awaiting agent dispatch</p><div><i></i></div>';
     host.appendChild(this.operationHud);
 
-    this.scene.background = new THREE.Color(0x080a0d);
-    this.scene.fog = new THREE.FogExp2(0x0a0d11, 0.0072);
+    this.scene.background = new THREE.Color(0x05080b);
+    this.scene.fog = new THREE.FogExp2(0x071017, 0.0064);
 
-    this.camera.position.set(96, 68, 116);
-    this.camera.lookAt(0, 0, 3);
+    this.camera.position.set(84, 58, 99);
+    this.camera.lookAt(1, 0, 5);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(0, 0, 3);
+    this.controls.target.set(1, 0, 5);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.06;
-    this.controls.minDistance = 60;
-    this.controls.maxDistance = 190;
+    this.controls.minDistance = 48;
+    this.controls.maxDistance = 165;
     this.controls.maxPolarAngle = Math.PI * 0.47;
+    this.controls.addEventListener("start", () => { this.cameraMove = null; });
 
     this.addLighting();
     this.addTerrain();
@@ -167,16 +180,11 @@ export class CityScene {
   focusDistrict(id: DistrictId): void {
     const visual = this.districtVisuals.get(id);
     if (!visual) return;
-    const offset = new THREE.Vector3(38, 29, 44);
-    this.controls.target.copy(visual.center);
-    this.camera.position.copy(visual.center).add(offset);
-    this.controls.update();
+    this.beginCameraMove(visual.center, visual.center.clone().add(new THREE.Vector3(34, 25, 39)), 1150);
   }
 
   focusOverview(): void {
-    this.controls.target.set(0, 0, 3);
-    this.camera.position.set(96, 68, 116);
-    this.controls.update();
+    this.beginCameraMove(new THREE.Vector3(1, 0, 5), new THREE.Vector3(84, 58, 99), 1250);
   }
 
   launchUnit(unit: UnitType, districtId: DistrictId): void {
@@ -193,7 +201,9 @@ export class CityScene {
     const label = this.unitLabel(unit);
     const destination = this.currentState?.districts[districtId].name ?? districtId;
     this.showOperation(label, airborne ? "AERIAL RECON" : "EN ROUTE", destination, 0);
-    this.movingUnits.push({ mesh, from, to, startedAt: performance.now(), duration: airborne ? 3200 : 4400, airborne, label, destination });
+    const routeCenter = from.clone().lerp(to, 0.52);
+    this.beginCameraMove(routeCenter, routeCenter.clone().add(new THREE.Vector3(46, 34, 49)), 950);
+    this.movingUnits.push({ mesh, from, to, startedAt: performance.now(), duration: airborne ? 3200 : 4400, airborne, label, destination, districtId });
   }
 
   flashDistrict(id: DistrictId, severity: Severity): void {
@@ -237,10 +247,10 @@ export class CityScene {
   }
 
   private addLighting(): void {
-    const hemisphere = new THREE.HemisphereLight(0x91a7bd, 0x201d1a, 0.72);
+    const hemisphere = new THREE.HemisphereLight(0x8fb9d3, 0x141817, 0.8);
     this.scene.add(hemisphere);
 
-    const moon = new THREE.DirectionalLight(0xc9dcf2, 2.8);
+    const moon = new THREE.DirectionalLight(0xc9e1f2, 3.15);
     moon.position.set(45, 78, 28);
     moon.castShadow = true;
     moon.shadow.mapSize.set(2048, 2048);
@@ -250,15 +260,19 @@ export class CityScene {
     moon.shadow.camera.bottom = -90;
     this.scene.add(moon);
 
-    const stormGlow = new THREE.PointLight(0x6d83b8, 48, 180, 2);
+    const stormGlow = new THREE.PointLight(0x4979b5, 62, 190, 2);
     stormGlow.position.set(-55, 45, -35);
     this.scene.add(stormGlow);
+
+    const emergencyGlow = new THREE.PointLight(0xff5362, 32, 120, 2);
+    emergencyGlow.position.set(42, 20, 28);
+    this.scene.add(emergencyGlow);
   }
 
   private addTerrain(): void {
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(132, 110),
-      new THREE.MeshStandardMaterial({ color: 0x191d1a, roughness: 0.92, metalness: 0.04 }),
+      new THREE.MeshStandardMaterial({ color: 0x11181b, roughness: 0.9, metalness: 0.08 }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -271,10 +285,10 @@ export class CityScene {
     border.position.y = -0.2;
     this.scene.add(border);
 
-    const grid = new THREE.GridHelper(132, 44, 0x313934, 0x252b27);
+    const grid = new THREE.GridHelper(132, 44, 0x294048, 0x18262b);
     grid.position.y = 0.03;
     (grid.material as THREE.Material).transparent = true;
-    (grid.material as THREE.Material).opacity = 0.35;
+    (grid.material as THREE.Material).opacity = 0.24;
     this.scene.add(grid);
   }
 
@@ -434,8 +448,8 @@ export class CityScene {
         districtPad.receiveShadow = true;
         group.add(districtPad);
 
-        const facadePalette = [0x4f5961, 0x655f58, 0x48545a, 0x666a67, 0x57545c];
-        const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x30363a, roughness: 0.82, metalness: 0.24 });
+        const facadePalette = [0x36454e, 0x514b48, 0x33434a, 0x4b5150, 0x443e49];
+        const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x202a30, roughness: 0.78, metalness: 0.3 });
 
         for (let index = 0; index < 11; index += 1) {
           const column = index % 4;
@@ -518,11 +532,11 @@ export class CityScene {
         shelter.visible = false;
         group.add(shelter);
 
-        const residentCrowd = this.createCrowd(id === "southbank" ? 0x8edfff : 0xb8c1bd, id === "southbank" ? 108 : 28, districtIndex * 97);
+        const residentCrowd = this.createCrowd(id === "southbank" ? 0x8edfff : 0xb8c1bd, id === "southbank" ? 132 : 32, districtIndex * 97);
         residentCrowd.group.position.set(id === "southbank" ? -1 : -10, 0.55, id === "southbank" ? 10 : 8);
         group.add(residentCrowd.group);
 
-        const shelterCrowd = this.createCrowd(0x72f1ad, 90, districtIndex * 131 + 41);
+        const shelterCrowd = this.createCrowd(0x72f1ad, 108, districtIndex * 131 + 41);
         shelterCrowd.group.position.set(10, 0.55, 8);
         shelterCrowd.group.visible = false;
         group.add(shelterCrowd.group);
@@ -802,7 +816,7 @@ export class CityScene {
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     const points = new THREE.Points(
       geometry,
-      new THREE.PointsMaterial({ color: 0x9bcfff, size: 0.22, transparent: true, opacity: 0.5 }),
+      new THREE.PointsMaterial({ color: 0x9bcfff, size: 0.24, transparent: true, opacity: 0.58 }),
     );
     this.scene.add(points);
     return points;
@@ -930,7 +944,7 @@ export class CityScene {
     bus.position.copy(source);
     this.scene.add(bus);
     const people: TransientPerson[] = [];
-    for (let index = 0; index < 30; index += 1) {
+    for (let index = 0; index < 44; index += 1) {
       const person = this.createPersonAvatar(index % 3 === 0 ? 0xffc857 : 0x8edfff);
       const angle = this.seeded(index * 23 + moved) * Math.PI * 2;
       const radius = 1.8 + this.seeded(index * 31 + moved) * 5.8;
@@ -943,6 +957,7 @@ export class CityScene {
     this.evacuationOperation = {
       bus, people, route: curve, routeLine, startedAt: performance.now(), duration: 7600, moved,
       destination: destinationVisual === this.districtVisuals.get("eastgate") ? "EASTGATE SHELTER" : `${shelterId.toUpperCase()} SHELTER`,
+      shelterId,
     };
     this.focusDistrict("southbank");
     this.showOperation("RESCUE CONVOY", "ASSEMBLING", `${moved.toLocaleString()} residents`, 0);
@@ -981,6 +996,17 @@ export class CityScene {
 
   private unitLabel(unit: UnitType): string {
     return ({ ambulance: "AMBULANCE 02", rescue_bus: "RESCUE CONVOY", drone: "RECON DRONE", fire_engine: "ENGINE 07", utility_truck: "GRID MOBILE 01" } satisfies Record<UnitType, string>)[unit];
+  }
+
+  private beginCameraMove(target: THREE.Vector3, position: THREE.Vector3, duration: number): void {
+    this.cameraMove = {
+      fromPosition: this.camera.position.clone(),
+      toPosition: position.clone(),
+      fromTarget: this.controls.target.clone(),
+      toTarget: target.clone(),
+      startedAt: performance.now(),
+      duration,
+    };
   }
 
   private createUnit(unit: UnitType): THREE.Group {
@@ -1070,6 +1096,14 @@ export class CityScene {
     this.rain.geometry.attributes.position.needsUpdate = true;
     this.river.position.y = 0.16 + Math.sin(this.pulseTime * 1.4) * 0.08;
 
+    if (this.cameraMove) {
+      const progress = THREE.MathUtils.clamp((now - this.cameraMove.startedAt) / this.cameraMove.duration, 0, 1);
+      const eased = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+      this.camera.position.lerpVectors(this.cameraMove.fromPosition, this.cameraMove.toPosition, eased);
+      this.controls.target.lerpVectors(this.cameraMove.fromTarget, this.cameraMove.toTarget, eased);
+      if (progress >= 1) this.cameraMove = null;
+    }
+
     for (const visual of this.districtVisuals.values()) {
       visual.marker.scale.setScalar(1 + Math.sin(this.pulseTime * 4) * 0.08);
       visual.marker.rotation.z += delta * 0.24;
@@ -1099,6 +1133,10 @@ export class CityScene {
         evacuation.bus.position.copy(evacuation.route.getPointAt(transit));
         const tangent = evacuation.route.getTangentAt(transit);
         evacuation.bus.rotation.y = Math.atan2(tangent.x, tangent.z);
+        this.cameraMove = null;
+        const followPosition = evacuation.bus.position.clone().add(new THREE.Vector3(25, 18, 27));
+        this.controls.target.lerp(evacuation.bus.position, Math.min(1, delta * 3.2));
+        this.camera.position.lerp(followPosition, Math.min(1, delta * 2.4));
         (evacuation.routeLine.material as THREE.LineBasicMaterial).opacity = 0.5 + Math.sin(this.pulseTime * 7) * 0.32;
         this.showOperation("RESCUE CONVOY", "IN TRANSIT", `Southbank → ${evacuation.destination}`, progress);
       } else {
@@ -1113,8 +1151,11 @@ export class CityScene {
       }
       if (progress >= 1) {
         const destination = evacuation.destination;
+        const shelterId = evacuation.shelterId;
         this.cleanupEvacuationOperation();
         this.showOperation("RESCUE CONVOY", "WAVE COMPLETE", destination, 1);
+        const shelter = this.districtVisuals.get(shelterId);
+        if (shelter) this.beginCameraMove(shelter.center, shelter.center.clone().add(new THREE.Vector3(30, 22, 34)), 900);
         window.setTimeout(() => { if (!this.evacuationOperation && this.movingUnits.length === 0) this.operationHud.classList.remove("active"); }, 1400);
       }
     }
@@ -1139,6 +1180,8 @@ export class CityScene {
           this.movingUnits.splice(index, 1);
           if (!this.evacuationOperation && this.movingUnits.length === 0) {
             this.showOperation(moving.label, "DEPLOYED", moving.destination, 1);
+            const destination = this.districtVisuals.get(moving.districtId);
+            if (destination) this.beginCameraMove(destination.center, destination.center.clone().add(new THREE.Vector3(32, 24, 37)), 850);
             window.setTimeout(() => { if (!this.evacuationOperation && this.movingUnits.length === 0) this.operationHud.classList.remove("active"); }, 1200);
           }
         }
