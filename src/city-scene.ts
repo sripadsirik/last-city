@@ -73,6 +73,7 @@ export class CityScene {
   private displayedEvacuated = 0;
   private collapse = 0;
   private collapsePending = false;
+  private collapseAnnounced = false;
   private follow = true;
   private day = false;
   private hiddenPanels = false;
@@ -358,9 +359,34 @@ export class CityScene {
   private animateCollapse(delta: number): void {
     if (!this.collapsePending) return;
     if (this.evacuation?.route === "meridian_bridge" && this.evacuation.fleet.some((bus) => bus.progress < EVAC_STAGES.transitEnd)) return;
+    if (!this.collapseAnnounced) {
+      this.collapseAnnounced = true;
+      this.world.barriers.visible = true;
+      for (let index = 0; index < 3; index++) {
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(1.8 + index * 1.2, 2.15 + index * 1.2, 48),
+          new THREE.MeshBasicMaterial({ color: index === 0 ? 0xe4f2ef : 0x78aeb5, transparent: true, opacity: 0.72 - index * 0.12, depthWrite: false, side: THREE.DoubleSide }),
+        );
+        ring.rotation.x = -Math.PI / 2; ring.position.set(BRIDGE_X, RIVER.waterY + 0.08, 14);
+        this.scene.add(ring); this.pulses.push({ mesh: ring, age: -index * 0.12 });
+      }
+      if (this.follow) {
+        this.motion = null;
+        this.controls.target.set(BRIDGE_X, -0.8, 14);
+        this.camera.position.set(BRIDGE_X + 29, 12, 38);
+      }
+    }
     this.collapse = Math.min(1, this.collapse + delta * 0.6);
-    const span = this.world.bridgeSpans[1]; span.position.y = 0.1 - this.collapse * this.collapse * 3.7;
-    span.rotation.x = this.collapse * 0.23; span.rotation.z = this.collapse * 0.07; this.world.barriers.visible = true;
+    const span = this.world.bridgeSpans[1];
+    span.position.y = 0.1 - this.collapse * this.collapse * 7.2;
+    span.rotation.x = this.collapse * 0.52; span.rotation.z = this.collapse * 0.18;
+    if (this.follow) {
+      const shake = (1 - this.collapse) * 0.34;
+      this.camera.position.set(BRIDGE_X + 29 + Math.sin(this.time * 44) * shake, 12 + Math.cos(this.time * 37) * shake, 38);
+      this.controls.target.set(BRIDGE_X, -0.8, 14);
+    }
+    this.showOperation("STRUCTURAL FAILURE", this.collapse < 1 ? "MERIDIAN SPAN COLLAPSING" : "SPAN DOWN · ROUTE CLOSED",
+      "Convoy clear · center deck dropped into the river", this.collapse, "Agent must inspect the changed route graph and recover");
     if (this.collapse < 1) this.world.water.position.y = RIVER.waterY + Math.sin(this.collapse * Math.PI) * 0.18;
     this.host.dataset.bridgeVisual = this.collapse === 1 ? "collapsed" : "collapsing";
   }
@@ -370,6 +396,7 @@ export class CityScene {
     this.host.dataset.visibleArrivals = String(this.displayedEvacuated + (this.evacuation?.arrived ?? 0));
     this.host.dataset.fleetSize = String(this.evacuation?.fleet.length ?? 0);
     this.host.dataset.bridgeVisual = this.collapse >= 1 ? "collapsed" : this.collapse > 0 ? "collapsing" : "intact";
+    this.host.dataset.bridgeDrop = Math.max(0, 0.1 - this.world.bridgeSpans[1].position.y).toFixed(1);
   }
   private showOperation(label: string, stage: string, detail: string, progress: number, note = "Every bus has 50 seats · time-compressed field operations"): void {
     this.operationHud.classList.add("active"); const signature = `${label}|${stage}|${detail}|${note}`;
@@ -479,7 +506,7 @@ export class CityScene {
     }
     this.evacuation = null; this.evacuationQueue = [];
     this.disposeTransient(this.dispatches.map((d) => d.model.group)); this.dispatches.length = 0;
-    this.lastEvacuated = this.displayedEvacuated = 0; this.collapse = 0; this.collapsePending = false;
+    this.lastEvacuated = this.displayedEvacuated = 0; this.collapse = 0; this.collapsePending = false; this.collapseAnnounced = false;
     this.world.bridgeSpans[1].position.y = 0.1; this.world.bridgeSpans[1].rotation.set(0, 0, 0); this.world.barriers.visible = false;
     for (const crowd of this.shelterCrowds.values()) crowd.count = 0;
     this.operationHud.classList.remove("active"); this.lastHud = ""; this.updateDiagnostics(); this.host.dispatchEvent(new Event("convoy-complete"));
