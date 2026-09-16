@@ -29,6 +29,7 @@ import {
   createIcons,
 } from "lucide";
 import { CityScene } from "./city-scene";
+import { FIELD_TIMING } from "./city-layout";
 import {
   CrisisSimulation,
   districtIds,
@@ -72,12 +73,12 @@ if (!app) throw new Error("Application root is missing.");
 
 app.innerHTML = `
   <section class="simulation-shell" aria-label="Last City crisis simulation">
-    <div id="scene" class="scene" aria-hidden="true"></div>
+    <div id="scene" class="scene"></div>
     <div class="scanlines" aria-hidden="true"></div>
     <div class="storm-vignette" aria-hidden="true"></div>
     <div class="weather-stamp" aria-hidden="true">
       <span>STORM CELL 07</span>
-      <strong>LAST CITY · 02:17</strong>
+      <strong>LAST CITY · 17:42</strong>
       <i></i>
     </div>
 
@@ -152,7 +153,7 @@ app.innerHTML = `
         <div class="section-label" id="resources-heading">RESPONSE UNITS</div>
         <div class="resource-grid">
           <div title="Ambulances"><i data-lucide="ambulance"></i><strong id="ambulance-count">2</strong></div>
-          <div title="Rescue buses"><i data-lucide="bus"></i><strong id="bus-count">2</strong></div>
+          <div title="Rescue convoys: each fleet uses 50-seat buses"><i data-lucide="bus"></i><strong id="bus-count">2</strong></div>
           <div title="Recon drones"><i data-lucide="drone"></i><strong id="drone-count">2</strong></div>
           <div title="Fire engines"><i data-lucide="flame"></i><strong id="fire-count">1</strong></div>
           <div title="Mobile generators"><i data-lucide="zap"></i><strong id="generator-count">1</strong></div>
@@ -359,16 +360,16 @@ let activeMutation: string | null = null;
 
 const TOOL_LATENCY_MS: Record<string, number> = {
   scan_district: 900,
-  dispatch_response_unit: 2800,
-  deploy_recon_drone: 2400,
+  dispatch_response_unit: FIELD_TIMING.dispatch,
+  deploy_recon_drone: FIELD_TIMING.drone,
 };
 
 function operationLatency(toolName: string, input: Record<string, unknown>): number {
   if (toolName === "manage_grid") {
-    return input.action === "deploy_generator" ? 3600 : input.action === "request_risky_diversion" ? 700 : 2400;
+    return input.action === "deploy_generator" ? FIELD_TIMING.dispatch : input.action === "request_risky_diversion" ? 700 : 2400;
   }
   if (toolName === "manage_evacuation") {
-    return input.action === "execute_wave" ? 7600 : input.action === "establish_crossing" ? 3200 : input.action === "open_shelter" ? 2100 : 700;
+    return input.action === "execute_wave" ? FIELD_TIMING.evacuation : input.action === "establish_crossing" ? 3200 : input.action === "open_shelter" ? 2100 : 700;
   }
   return TOOL_LATENCY_MS[toolName] ?? 0;
 }
@@ -796,10 +797,12 @@ async function invokeMissionTool(name: string, input: Record<string, unknown> = 
 
   const fallbackTool = buildTools(simulation.snapshot).find((tool) => tool.name === name);
   if (!fallbackTool) throw new Error(`Guided mission tool is unavailable: ${name}`);
+  const runState = simulation.snapshot;
   const result = await fallbackTool.execute(input);
   if (name === "manage_evacuation" && input.action === "execute_wave" && (result as ActionResult).ok !== false) {
-    await delay(operationLatency(name, input));
+    await city.waitForEvacuation();
   }
+  if (simulation.snapshot !== runState) return { ok: false, message: "Operation cancelled because the mission was reset." };
   advanceOperationBudget(name, result, input);
   return result;
 }
@@ -938,9 +941,12 @@ function withExecutionTracking(tool: ModelContextTool): ModelContextTool {
         setAgentOperation("WEBMCP OPERATION ACTIVE", `${tool.title ?? tool.name} is changing the shared city state. Command bus locked.`, "running");
       }
       try {
+        const runState = simulation.snapshot;
         const result = await tool.execute(input, options);
         const latency = operationLatency(tool.name, input);
-        if (latency > 0) await delay(latency);
+        if (tool.name === "manage_evacuation" && input.action === "execute_wave") await city.waitForEvacuation();
+        else if (latency > 0) await delay(latency);
+        if (simulation.snapshot !== runState) return { ok: false, message: "Operation cancelled because the mission was reset." };
         const chargedSeconds = advanceOperationBudget(tool.name, result, input);
         if (mutating) {
           const outcome = result && typeof result === "object" ? result as ActionResult : null;
