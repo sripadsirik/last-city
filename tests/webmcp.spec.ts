@@ -42,7 +42,7 @@ async function executeTool(page: Page, name: string, input: Record<string, unkno
 }
 
 test("adapts through a stable native WebMCP control plane and real human authorization", async ({ page }, testInfo) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   await page.goto("/");
   await expect(page.locator("#webmcp-status")).toContainText("Site tools live");
   const stableTools = ["deploy_recon_drone", "dispatch_response_unit", "export_after_action_report", "forecast_cascade", "inspect_city_status", "manage_evacuation", "manage_grid", "scan_district"];
@@ -86,9 +86,15 @@ test("adapts through a stable native WebMCP control plane and real human authori
   const pendingFirstWave = executeTool(page, "manage_evacuation", { action: "execute_wave" });
   await expect(page.locator(".world-operation")).toHaveClass(/active/);
   await expect(page.locator(".world-operation strong")).toContainText(/ASSEMBLING|BOARDING|IN TRANSIT/);
+  await expect(page.locator("#scene")).toHaveAttribute("data-fleet-size", "18");
+  await expect(page.locator("#scene")).toHaveAttribute("data-bridge-visual", "intact");
+  await expect(page.locator("#scene")).toHaveAttribute("data-visible-arrivals", "0");
   await page.screenshot({ path: testInfo.outputPath("evacuation-field-operation.png"), fullPage: true });
   const firstWave = await pendingFirstWave;
   expect(firstWave.ok).toBe(true);
+  await expect(page.locator("#scene")).toHaveAttribute("data-convoy", "idle");
+  await expect(page.locator("#scene")).toHaveAttribute("data-visible-arrivals", "900");
+  await expect(page.locator("#scene")).toHaveAttribute("data-bridge-visual", "collapsed");
   expect((await executeTool(page, "inspect_city_status")).availableOperations).not.toContain("manage_evacuation.execute_wave");
   await expect.poll(() => toolNames(page)).toEqual(stableTools);
 
@@ -97,6 +103,7 @@ test("adapts through a stable native WebMCP control plane and real human authori
   await executeTool(page, "manage_evacuation", { action: "establish_crossing", route: "rail_spur" });
   expect((await executeTool(page, "inspect_city_status")).availableOperations).toContain("manage_evacuation.execute_wave");
   await executeTool(page, "manage_evacuation", { action: "execute_wave" });
+  await expect(page.locator("#scene")).toHaveAttribute("data-visible-arrivals", "1800");
   await expect(page.locator("#objective-southbank")).toHaveClass(/complete/);
   await expect(page.locator("#objective-comms")).toHaveClass(/complete/);
   await expect(page.locator("#timer")).not.toHaveText("01:30");
