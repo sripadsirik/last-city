@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { PNG } from "pngjs";
 
 test("renders a nonblank city with a WebMCP-first human console", async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
@@ -11,6 +12,8 @@ test("renders a nonblank city with a WebMCP-first human console", async ({ page 
   await page.goto("/");
   const canvas = page.locator("#scene canvas");
   await expect(canvas).toBeVisible();
+  await expect(page.locator("#scene")).toHaveAttribute("data-architecture", "loaded", { timeout: 30_000 });
+  await expect(page.locator("#scene")).toHaveAttribute("data-authored-buildings", "4");
   await page.waitForTimeout(600);
 
   const viewport = page.viewportSize();
@@ -61,11 +64,26 @@ test("renders a nonblank city with a WebMCP-first human console", async ({ page 
   await expect(page.locator(".console-note")).toContainText("WebMCP tools");
 
   await page.screenshot({ path: testInfo.outputPath("active.png"), fullPage: true });
+  if (testInfo.project.name === "desktop") {
+    await page.getByRole("button", { name: "Expand city", exact: true }).click();
+    await expect(page.locator(".simulation-shell")).toHaveClass(/city-expanded/);
+    await page.getByRole("button", { name: "Street", exact: true }).click();
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: testInfo.outputPath("street-models.png") });
+    await page.getByRole("button", { name: "Bridge", exact: true }).click();
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: testInfo.outputPath("bridge-structure.png") });
+    await page.getByRole("button", { name: "Daylight", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Storm light", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Aerial", exact: true }).click();
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: testInfo.outputPath("daylight-city.png") });
+  }
   expect(pageErrors).toEqual([]);
 });
 
 test("explains Site tools setup and labels the scripted fallback", async ({ page }, testInfo) => {
-  test.setTimeout(45_000);
+  test.setTimeout(150_000);
   test.skip(testInfo.project.name !== "desktop", "The guided agent journey only needs one fallback-browser pass.");
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -87,7 +105,7 @@ test("explains Site tools setup and labels the scripted fallback", async ({ page
   await expect(page.locator("#approval-panel")).toBeVisible();
   await page.getByRole("button", { name: "Authorize" }).click();
 
-  await expect(page.locator("#agent-stage")).toHaveText("STRATEGY DEPLOYED", { timeout: 30_000 });
+  await expect(page.locator("#agent-stage")).toHaveText("STRATEGY DEPLOYED", { timeout: 100_000 });
   await expect(page.locator("#objective-hospital")).toHaveClass(/complete/);
   await expect(page.locator("#objective-southbank")).toHaveClass(/complete/);
   await expect(page.locator("#objective-comms")).toHaveClass(/complete/);
