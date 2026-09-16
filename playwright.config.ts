@@ -11,6 +11,8 @@ export default defineConfig({
     colorScheme: "dark",
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
+    // Use the Mac GPU for the detailed WebGL scene; keep other platforms' default backend.
+    launchOptions: { args: process.platform === "darwin" ? ["--use-angle=metal"] : [] },
   },
   projects: [
     {
@@ -34,7 +36,7 @@ export default defineConfig({
         channel: "chrome",
         viewport: { width: 1440, height: 900 },
         launchOptions: {
-          args: ["--enable-features=WebMCPTesting"],
+          args: ["--enable-features=WebMCPTesting", ...(process.platform === "darwin" ? ["--use-angle=metal"] : [])],
         },
       },
     },
