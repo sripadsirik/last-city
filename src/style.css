@@ -726,6 +726,50 @@ button.status-chip { cursor: pointer; }
   font-size: 9px;
 }
 
+/* Riverfront city: keep navigation on the world, with a clean expanded view. */
+.city-viewbar {
+  position: absolute;
+  z-index: 8;
+  left: 50%;
+  bottom: 106px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 12px 14px;
+  border: 1px solid rgba(226, 222, 205, 0.22);
+  border-radius: 9px;
+  background: rgba(21, 30, 32, 0.91);
+  box-shadow: 0 8px 28px #0003;
+  backdrop-filter: blur(16px);
+  pointer-events: auto;
+}
+.city-viewbar-caption { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; color: #e1dfd1; font-size: 9px; letter-spacing: .13em; }
+.city-viewbar-caption i { width: 5px; height: 5px; background: #b3c8a9; border-radius: 50%; }
+.city-viewbar-caption small { margin-left: auto; color: #a8b1ad; font-size: 7px; letter-spacing: .05em; }
+.city-viewbar-actions { display: flex; gap: 3px; }
+.city-viewbar-actions button { padding: 8px 11px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: #cbcfc7; font: inherit; font-size: 10px; white-space: nowrap; cursor: pointer; }
+.city-viewbar-actions button:hover, .city-viewbar-actions button.selected { background: #c9d0ba20; border-color: #c9d0ba40; color: #f1ecd9; }
+.city-viewbar-actions button:focus-visible { outline: 2px solid #e2c497; outline-offset: 2px; }
+.city-place-label { position: absolute; top: 0; left: 0; z-index: 3; display: grid; grid-template-columns: 5px auto; gap: 3px 7px; padding: 7px 10px; border: 1px solid #ddd8c340; border-radius: 3px; background: #18262bc9; box-shadow: 0 3px 8px #0002; color: #efeadb; text-align: left; pointer-events: auto; cursor: pointer; white-space: nowrap; }
+.city-place-label i { width: 4px; height: 4px; margin-top: 3px; background: #aac6af; border-radius: 50%; }
+.city-place-label.at-risk i { background: #e3a579; }
+.city-place-label span { font-size: 8px; font-weight: 600; letter-spacing: .075em; }
+.city-place-label small { grid-column: 2; font-size: 8px; color: #b9c5c1; }
+.city-place-label[hidden] { display: none; }
+.world-operation > small { display: block; margin-top: 8px; font-size: 8px; color: #a5b6ae; letter-spacing: .02em; }
+.simulation-shell.city-expanded > :is(.mission-rail, .activity-rail, .directive-bar, .map-nav, .weather-stamp) { visibility: hidden; pointer-events: none; }
+.simulation-shell.city-expanded .city-viewbar { bottom: 22px; }
+.simulation-shell.city-expanded .world-operation { top: 112px; width: 400px; }
+.simulation-shell.city-expanded .storm-vignette { opacity: .1; }
+.simulation-shell:has(.briefing-band:not(.dismissed)) :is(.city-viewbar, .city-place-label) { visibility: hidden; pointer-events: none; }
+@media (max-width: 900px) {
+  .city-viewbar { bottom: 95px; padding: 9px; }
+  .city-viewbar-caption small { display: none; }
+  .city-viewbar-actions { flex-wrap: wrap; justify-content: center; }
+  .city-viewbar-actions button { padding: 6px 7px; font-size: 9px; }
+  .city-place-label { display: none; }
+  .simulation-shell.city-expanded .world-operation { width: calc(100vw - 28px); min-width: 0; }
+}
+
 .activity-time small {
   display: block;
   margin-top: 4px;
