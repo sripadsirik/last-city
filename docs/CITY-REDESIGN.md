@@ -1,5 +1,19 @@
 # Riverfront city redesign
 
+## Isolated public preview
+
+The redesign is hosted at https://last-city-preview.pages.dev in the separate Cloudflare Pages project `last-city-preview`. Its deployment branch is `cinematic-redesign`; this does not change the judging project `last-city` or https://last-city.pages.dev.
+
+Keep `main` and the judging deployment unchanged through September 20, 2026. Do not merge or deploy this branch to `last-city` during that freeze.
+
+To update only the preview from `cinematic-redesign`:
+
+```sh
+test "$(git branch --show-current)" = cinematic-redesign && npm run build && npx wrangler pages deploy dist --project-name last-city-preview --branch cinematic-redesign
+```
+
+Always provide the explicit project name. Wrangler is a development dependency; authenticate with `npx wrangler login` if needed. No Git push is required for this direct upload.
+
 ## Local preview
 
 Run `npm run dev -- --host 127.0.0.1 --port 5173` and open http://127.0.0.1:5173.
