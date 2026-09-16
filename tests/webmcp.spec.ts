@@ -95,6 +95,9 @@ test("adapts through a stable native WebMCP control plane and real human authori
   await expect(page.locator("#scene")).toHaveAttribute("data-convoy", "idle");
   await expect(page.locator("#scene")).toHaveAttribute("data-visible-arrivals", "900");
   await expect(page.locator("#scene")).toHaveAttribute("data-bridge-visual", "collapsed");
+  await expect(page.locator("#scene")).toHaveAttribute("data-bridge-drop", "7.2");
+  await expect(page.locator(".world-operation strong")).toContainText("SPAN DOWN");
+  await page.screenshot({ path: testInfo.outputPath("meridian-span-collapsed.png"), fullPage: true });
   expect((await executeTool(page, "inspect_city_status")).availableOperations).not.toContain("manage_evacuation.execute_wave");
   await expect.poll(() => toolNames(page)).toEqual(stableTools);
 
