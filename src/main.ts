@@ -440,10 +440,9 @@ function renderState(state: Readonly<MissionState>): void {
   setText("drone-count", String(state.resources.drone));
   setText("fire-count", String(state.resources.fire_engine));
   setText("generator-count", String(state.resources.mobile_generator));
-  setText("evac-target-label", `${state.evacuationTarget.toLocaleString()} resident threshold`);
+  renderEvacuationProgress(state);
 
   renderObjective("objective-hospital", state.hospitalStabilized && state.hospitalFireContained);
-  renderObjective("objective-southbank", state.districts.southbank.evacuated >= state.evacuationTarget);
   renderObjective("objective-comms", state.communicationsOnline && state.communicationsProtected);
   renderActivity(state);
   renderBenchmark(state);
@@ -457,6 +456,19 @@ function renderState(state: Readonly<MissionState>): void {
     if (district) city.flashDistrict(district, newest.severity);
   }
 }
+
+function renderEvacuationProgress(state: Readonly<MissionState>): void {
+  const arrived = Math.min(state.districts.southbank.evacuated, city.fieldStatus.arrived);
+  setText("evac-target-label", `${arrived.toLocaleString()} / ${state.evacuationTarget.toLocaleString()} safely arrived`);
+  renderObjective("objective-southbank", arrived >= state.evacuationTarget);
+  const enRoute = Math.max(0, state.districts.southbank.evacuated - arrived);
+  setText("protected-value", Math.max(0,Math.round(state.livesProtected)-enRoute).toLocaleString());
+}
+
+requiredElement("scene").addEventListener("field-progress", () => {
+  renderEvacuationProgress(simulation.snapshot);
+  renderActivity(simulation.snapshot);
+});
 
 function renderBenchmark(state: Readonly<MissionState>): void {
   const metrics = state.metrics;
@@ -485,12 +497,13 @@ function renderObjective(id: string, complete: boolean): void {
 function renderActivity(state: Readonly<MissionState>): void {
   const list = requiredElement("activity-list");
   list.innerHTML = state.activity
+    .filter((entry) => entry.title !== "Meridian Bridge collapsed" || city.fieldStatus.bridgeFallen)
     .slice(0, 8)
     .map(
       (entry) => `
         <article class="activity-entry ${entry.severity}">
           <span class="activity-time">T+${String(Math.floor(entry.at)).padStart(2, "0")}<small>${entry.actor}</small></span>
-          <div><strong>${entry.title}</strong><p>${entry.detail}</p></div>
+          <div><strong>${city.fieldStatus.inTransit && entry === state.activity.find(e => e.title === "Evacuation wave completed") ? "Evacuation convoy underway" : entry.title}</strong><p>${city.fieldStatus.inTransit && entry === state.activity.find(e => e.title === "Evacuation wave completed") ? "Follow the fleet from Southbank to the shelter. Arrivals are counted as residents disembark." : entry.detail}</p></div>
         </article>
       `,
     )
@@ -662,7 +675,7 @@ requiredElement("close-connection").addEventListener("click", () => {
   requiredElement("connection-panel").hidden = true;
 });
 requiredElement("copy-url-button").addEventListener("click", async () => {
-  await navigator.clipboard.writeText("https://last-city.pages.dev");
+  await navigator.clipboard.writeText(window.location.origin);
   showToast("Live URL copied.");
 });
 requiredElement("copy-connection-prompt").addEventListener("click", async () => {
