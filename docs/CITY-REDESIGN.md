@@ -47,6 +47,10 @@ Distances and travel times are compressed for the demonstration. Standard mode r
 
 ## Rendering and verification
 
+Southbank flooding occupies the lower streets around the assembly plaza, with animated currents and floating debris. The plaza remains dry. Fire uses animated flame silhouettes, a wind-driven smoke column and flickering light; it subsides after the fire engine arrives. The hazard intensity follows the mission state.
+
+The bridge failure camera shot ends after a short hold, allowing the camera to follow reconnaissance and the next convoy. Its banner explicitly reports the residents still stranded. Human-facing evacuation and protection counters count visible arrivals, and Southbank is only marked secured after everyone reaches the shelter. The underlying action result is returned after the animation finishes.
+
 Architecture is batched by material, crowds and authored components are instanced, and the fleet shares geometry. GPU rendering includes environment reflections, soft shadows, atmospheric fog and ambient occlusion. Software renderers use a lighter path; measured slow frame rates also trigger that path automatically.
 
 `npm test` checks the simulation and geographic invariants: buildings stay on land, the assembly point is separated from the bridge, and alternate paths cross at the correct infrastructure.
