@@ -8,6 +8,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { CityMaterials, createVehicle, ModelBatch, personGeometry, seeded, type VehicleModel } from "./city-models";
 import { buildCityWorld, type CityWorld } from "./city-world";
 import { loadArchitecturalFacades } from "./city-architecture";
+import { FloodDistrict, flameMaterial } from "./city-hazards";
 import { approachPath, evacuationPath, dispatchPath, DISTRICTS, ROAD_Y, RIVER, BRIDGE_X, FIELD_TIMING, EVAC_STAGES, type Point } from "./city-layout";
 import type { DistrictId, EvacuationRoute, MissionState, Severity, UnitType } from "./simulation";
 
@@ -15,7 +16,7 @@ interface CameraMove { start: THREE.Vector3; end: THREE.Vector3; from: THREE.Vec
 interface Dispatch { model: VehicleModel; path: THREE.CurvePath<THREE.Vector3>; age: number; duration: number; district: DistrictId; type: UnitType; arrived: boolean }
 interface ConvoyVehicle { model: VehicleModel; approach: THREE.CurvePath<THREE.Vector3>; transit: THREE.CurvePath<THREE.Vector3>; offset: number; count: number; progress: number; boat: THREE.Group }
 interface Evacuation { fleet: ConvoyVehicle[]; people: THREE.InstancedMesh; route: EvacuationRoute; shelter: DistrictId; moved: number; age: number; boarded: number; arrived: number; line: THREE.Line; duration: number }
-interface Smoke { mesh: THREE.InstancedMesh; flames: THREE.InstancedMesh; light: THREE.PointLight; location: THREE.Vector3; district: DistrictId }
+interface Smoke { mesh: THREE.InstancedMesh; flames: THREE.InstancedMesh; light: THREE.PointLight; location: THREE.Vector3; district: DistrictId; intensity: number }
 const UP = new THREE.Vector3(0, 1, 0);
 const OVERVIEW = new THREE.Vector3(190, 158, 214);
 const OVERVIEW_TARGET = new THREE.Vector3(0, 0, 4);
@@ -59,7 +60,7 @@ export class CityScene {
   private readonly crowd: THREE.InstancedMesh;
   private readonly shelterCrowds = new Map<DistrictId, THREE.InstancedMesh>();
   private readonly fires: Smoke[] = [];
-  private readonly flood: THREE.Mesh;
+  private readonly flood = new FloodDistrict();
   private readonly dispatches: Dispatch[] = [];
   private readonly traffic: Array<{ model: VehicleModel; path: THREE.CurvePath<THREE.Vector3>; offset: number }> = [];
   private readonly pulses: Array<{ mesh: THREE.Mesh; age: number }> = [];
@@ -74,6 +75,7 @@ export class CityScene {
   private collapse = 0;
   private collapsePending = false;
   private collapseAnnounced = false;
+  private collapseHold = 0;
   private follow = true;
   private day = false;
   private hiddenPanels = false;
@@ -82,6 +84,10 @@ export class CityScene {
   private destroyed = false;
   private frameTime = 0;
   private measuredFrames = 0;
+
+  get fieldStatus(): { arrived: number; inTransit: boolean; bridgeFallen: boolean } {
+    return { arrived: this.displayedEvacuated + (this.evacuation?.arrived ?? 0), inTransit: Boolean(this.evacuation), bridgeFallen: this.collapse > 0 };
+  }
 
   constructor(private readonly host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
@@ -144,9 +150,8 @@ export class CityScene {
     for (const district of Object.keys(DISTRICTS) as DistrictId[]) {
       const crowd = this.makePeople(160); crowd.count = 0; this.shelterCrowds.set(district, crowd); this.scene.add(crowd);
     }
-    this.flood = new THREE.Mesh(new THREE.PlaneGeometry(95, 30), new THREE.MeshStandardMaterial({ color: 0x496c69, normalMap: this.world.waterNormal, roughness: 0.22, metalness: 0.35, transparent: true, opacity: 0.58, depthWrite: false }));
-    this.flood.rotation.x = -Math.PI / 2; this.flood.position.set(2, 0.27, 97); this.scene.add(this.flood);
-    this.fires.push(this.makeFire(new THREE.Vector3(-42, 0.6, -25), "midtown"), this.makeFire(new THREE.Vector3(-97, 0.5, 56), "harbor"));
+    this.scene.add(this.flood.group);
+    this.fires.push(this.makeFire(new THREE.Vector3(-42, 0.6, -20), "midtown"), this.makeFire(new THREE.Vector3(-97, 0.5, 56), "harbor"));
     this.rain = this.makeRain(); this.scene.add(this.rain);
     for (let i = 0; i < 7; i++) {
       const model = createVehicle("car", this.materials);
@@ -161,8 +166,7 @@ export class CityScene {
     const moved = state.districts.southbank.evacuated - this.lastEvacuated;
     this.lastEvacuated = state.districts.southbank.evacuated; this.state = state;
     for (const [district, window] of Object.entries(this.world.windows) as [DistrictId, THREE.MeshStandardMaterial][]) window.emissiveIntensity = state.districts[district].power / 100 * (this.day ? 0.3 : 1.2);
-    this.flood.visible = state.districts.southbank.flood > 35;
-    this.flood.scale.y = THREE.MathUtils.lerp(0.6, 1, state.districts.southbank.flood / 100);
+    this.flood.update(this.time, state.districts.southbank.flood);
     this.world.railBarriers.visible = state.evacuationPlan?.route !== "rail_spur" || state.bridgeStatus !== "emergency_crossing";
     if (moved > 0 && state.evacuationPlan) {
       // Snapshot the contract; replanning cannot rewrite a convoy already crossing.
@@ -198,9 +202,9 @@ export class CityScene {
     mesh.rotation.x = -Math.PI / 2; mesh.position.set(d.stop[0], 0.3, d.stop[1]); this.scene.add(mesh); this.pulses.push({ mesh, age: 0 });
   }
   async waitForEvacuation(): Promise<void> {
-    if (!this.evacuation && !this.evacuationQueue.length) return;
+    if (!this.evacuation && !this.evacuationQueue.length && this.collapseHold <= 0) return;
     return new Promise((resolve) => {
-      const done = () => { if (!this.evacuation && !this.evacuationQueue.length) { this.host.removeEventListener("convoy-complete", done); resolve(); } };
+      const done = () => { if (!this.evacuation && !this.evacuationQueue.length && this.collapseHold <= 0) { this.host.removeEventListener("convoy-complete", done); resolve(); } };
       this.host.addEventListener("convoy-complete", done);
     });
   }
@@ -342,10 +346,11 @@ export class CityScene {
     const ctx = canvas.getContext("2d")!, gradient = ctx.createRadialGradient(32, 32, 1, 32, 32, 31);
     gradient.addColorStop(0, "rgba(255,255,255,0.7)"); gradient.addColorStop(0.45, "rgba(255,255,255,0.3)"); gradient.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = gradient; ctx.fillRect(0, 0, 64, 64); const map = new THREE.CanvasTexture(canvas);
-    const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ map, color: 0x555c5e, transparent: true, opacity: 0.4, depthWrite: false }), 20);
-    const flames = new THREE.InstancedMesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ map, color: 0xffa24a, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }), 12);
-    const light = new THREE.PointLight(0xff8d48, 24, 24, 2); light.position.copy(location).add(new THREE.Vector3(0, 2, 0));
-    mesh.frustumCulled = flames.frustumCulled = false; this.scene.add(mesh, flames, light); return { mesh, flames, light, location, district };
+    const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ map, color: 0x252a2d, transparent: true, opacity: 0.88, depthWrite: false }), 36);
+    const flames = new THREE.InstancedMesh(new THREE.PlaneGeometry(2, 2), flameMaterial(), 24);
+    for(let i=0;i<24;i++) flames.setColorAt(i,new THREE.Color(i%3===0?0xffe4a3:0xff7c29));
+    const light = new THREE.PointLight(0xff8d48, 240, 38, 2); light.position.copy(location).add(new THREE.Vector3(0, 4, 0));
+    mesh.frustumCulled = flames.frustumCulled = false; this.scene.add(mesh, flames, light); return { mesh, flames, light, location, district, intensity: district === "midtown" ? 1 : 0.3 };
   }
   private makeRain(): THREE.LineSegments {
     const positions = new Float32Array(500 * 6);
@@ -358,9 +363,11 @@ export class CityScene {
   }
   private animateCollapse(delta: number): void {
     if (!this.collapsePending) return;
+    if (this.collapse >= 1 && this.collapseHold <= 0) return;
     if (this.evacuation?.route === "meridian_bridge" && this.evacuation.fleet.some((bus) => bus.progress < EVAC_STAGES.transitEnd)) return;
     if (!this.collapseAnnounced) {
       this.collapseAnnounced = true;
+      this.collapseHold = 3;
       this.world.barriers.visible = true;
       for (let index = 0; index < 3; index++) {
         const ring = new THREE.Mesh(
@@ -386,8 +393,12 @@ export class CityScene {
       this.controls.target.set(BRIDGE_X, -0.8, 14);
     }
     this.showOperation("STRUCTURAL FAILURE", this.collapse < 1 ? "MERIDIAN SPAN COLLAPSING" : "SPAN DOWN · ROUTE CLOSED",
-      "Convoy clear · center deck dropped into the river", this.collapse, "Agent must inspect the changed route graph and recover");
-    if (this.collapse < 1) this.world.water.position.y = RIVER.waterY + Math.sin(this.collapse * Math.PI) * 0.18;
+      `First convoy clear · ${Math.max(0,(this.state?.evacuationTarget ?? 1800)-(this.state?.districts.southbank.evacuated ?? 0)).toLocaleString()} residents still stranded`, this.collapse, "Recon drone required · find another way across");
+    this.world.water.position.y = RIVER.waterY + Math.sin(this.collapse * Math.PI) * 0.18;
+    if (this.collapse >= 1) {
+      this.collapseHold = Math.max(0, this.collapseHold - delta);
+      if (this.collapseHold === 0) { this.updateDiagnostics(); this.host.dispatchEvent(new Event("convoy-complete")); }
+    }
     this.host.dataset.bridgeVisual = this.collapse === 1 ? "collapsed" : "collapsing";
   }
   private updateDiagnostics(): void {
@@ -397,6 +408,8 @@ export class CityScene {
     this.host.dataset.fleetSize = String(this.evacuation?.fleet.length ?? 0);
     this.host.dataset.bridgeVisual = this.collapse >= 1 ? "collapsed" : this.collapse > 0 ? "collapsing" : "intact";
     this.host.dataset.bridgeDrop = Math.max(0, 0.1 - this.world.bridgeSpans[1].position.y).toFixed(1);
+    this.host.dataset.collapseCinematic = this.collapseHold > 0 ? "active" : "released";
+    if (this.frameCount % 15 === 0 || !this.evacuation) this.host.dispatchEvent(new Event("field-progress"));
   }
   private showOperation(label: string, stage: string, detail: string, progress: number, note = "Every bus has 50 seats · time-compressed field operations"): void {
     this.operationHud.classList.add("active"); const signature = `${label}|${stage}|${detail}|${note}`;
@@ -450,6 +463,7 @@ export class CityScene {
       if (t >= 1) this.motion = null;
     }
     this.world.waterNormal.offset.set(this.time * 0.007, this.time * 0.013);
+    this.flood.update(this.time, this.state?.districts.southbank.flood ?? 72);
     const rain = this.rain.geometry.attributes.position.array as Float32Array;
     for (let i = 0; i < rain.length; i += 6) {
       rain[i + 1] -= delta * 27; rain[i + 4] -= delta * 27;
@@ -460,15 +474,19 @@ export class CityScene {
     for (const f of this.fires) {
       const engineEnRoute = this.dispatches.some((d) => d.type === "fire_engine" && d.district === f.district && !d.arrived);
       const risk = engineEnRoute ? 26 : this.state?.districts[f.district].fire ?? (f.district === "midtown" ? 26 : 8);
+      const suppressed=f.district === "midtown" && this.state?.hospitalFireContained && !engineEnRoute;
+      const target=suppressed?0:risk>5?Math.max(0.3,risk/26):0;
+      f.intensity=THREE.MathUtils.damp(f.intensity,target,1.3,delta);
+      (f.flames.material as THREE.ShaderMaterial).uniforms.time.value=this.time;
       quaternion.copy(this.camera.quaternion);
-      f.mesh.visible = f.flames.visible = risk > 5; f.light.intensity = risk > 5 ? 18 + Math.sin(this.time * 11) * 5 : 0;
-      for (let i = 0; i < 20; i++) {
-        const t = (this.time * 0.095 + i / 20) % 1;
-        matrix.compose(f.location.clone().add(new THREE.Vector3(t * 12 + Math.sin(i) * 1.2, t * 22 + 2, -t * 4)), quaternion, scale.setScalar(0.8 + t * 3.1)); f.mesh.setMatrixAt(i, matrix);
+      f.mesh.visible = f.flames.visible = f.intensity > 0.025; f.light.intensity = f.intensity * (230 + Math.sin(this.time * 11) * 65);
+      for (let i = 0; i < 36; i++) {
+        const t = (this.time * 0.075 + i / 36) % 1;
+        matrix.compose(f.location.clone().add(new THREE.Vector3(-t * 18 + Math.sin(i) * 2.5, t * 32 + 4, t * 5)), quaternion, scale.setScalar((2.2 + t * 5) * Math.min(1.5,f.intensity))); f.mesh.setMatrixAt(i, matrix);
       }
-      for (let i = 0; i < 12; i++) {
-        const t = (this.time * 0.8 + i / 12) % 1;
-        matrix.compose(f.location.clone().add(new THREE.Vector3(Math.sin(i * 2) * 1.5, t * 4 + 0.3, Math.cos(i * 3) * 1.4)), quaternion, scale.set(0.35 * (1 - t), 0.9 * (1 - t), 0.35 * (1 - t))); f.flames.setMatrixAt(i, matrix);
+      for (let i = 0; i < 24; i++) {
+        const t = (this.time * 0.5 + i / 24) % 1;
+        matrix.compose(f.location.clone().add(new THREE.Vector3(Math.sin(i * 2) * 2.4, t * 7 + 1.3, Math.cos(i * 3) * 2)), quaternion, scale.set(1.5 * (1 - t) * f.intensity, 3.8 * (1 - t) * f.intensity, 1)); f.flames.setMatrixAt(i, matrix);
       }
       f.mesh.instanceMatrix.needsUpdate = f.flames.instanceMatrix.needsUpdate = true;
     }
@@ -492,6 +510,7 @@ export class CityScene {
     }
     this.controls.update();
     if (this.frameCount++ % 3 === 0) for (const label of this.labels) {
+      if (label.district === "southbank") label.element.querySelector("small")!.textContent = `${Math.max(0,(this.state?.evacuationTarget ?? 1800)-this.fieldStatus.arrived).toLocaleString()} awaiting safety`;
       const projected = label.point.clone().project(this.camera), distance = this.camera.position.distanceTo(label.point);
       label.element.hidden = !(projected.z < 1 && projected.z > -1 && Math.abs(projected.x) < 0.94 && Math.abs(projected.y) < 0.77 && distance > 45);
       label.element.style.transform = `translate(-50%, -100%) translate(${(projected.x + 1) * this.host.clientWidth / 2}px, ${(1 - projected.y) * this.host.clientHeight / 2}px)`;
@@ -506,7 +525,7 @@ export class CityScene {
     }
     this.evacuation = null; this.evacuationQueue = [];
     this.disposeTransient(this.dispatches.map((d) => d.model.group)); this.dispatches.length = 0;
-    this.lastEvacuated = this.displayedEvacuated = 0; this.collapse = 0; this.collapsePending = false; this.collapseAnnounced = false;
+    this.lastEvacuated = this.displayedEvacuated = 0; this.collapse = 0; this.collapsePending = false; this.collapseAnnounced = false; this.collapseHold = 0;
     this.world.bridgeSpans[1].position.y = 0.1; this.world.bridgeSpans[1].rotation.set(0, 0, 0); this.world.barriers.visible = false;
     for (const crowd of this.shelterCrowds.values()) crowd.count = 0;
     this.operationHud.classList.remove("active"); this.lastHud = ""; this.updateDiagnostics(); this.host.dispatchEvent(new Event("convoy-complete"));
