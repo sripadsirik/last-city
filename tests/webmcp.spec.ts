@@ -96,6 +96,9 @@ test("adapts through a stable native WebMCP control plane and real human authori
   await expect(page.locator("#scene")).toHaveAttribute("data-visible-arrivals", "900");
   await expect(page.locator("#scene")).toHaveAttribute("data-bridge-visual", "collapsed");
   await expect(page.locator("#scene")).toHaveAttribute("data-bridge-drop", "7.2");
+  await expect(page.locator("#evac-target-label")).toContainText("900 / 1,800");
+  await expect(page.locator("#objective-southbank")).not.toHaveClass(/complete/);
+  await expect(page.locator("#scene")).toHaveAttribute("data-collapse-cinematic", "released");
   await expect(page.locator(".world-operation strong")).toContainText("SPAN DOWN");
   await page.screenshot({ path: testInfo.outputPath("meridian-span-collapsed.png"), fullPage: true });
   expect((await executeTool(page, "inspect_city_status")).availableOperations).not.toContain("manage_evacuation.execute_wave");
@@ -105,7 +108,10 @@ test("adapts through a stable native WebMCP control plane and real human authori
   expect((await executeTool(page, "inspect_city_status")).availableOperations).toContain("manage_evacuation.establish_crossing");
   await executeTool(page, "manage_evacuation", { action: "establish_crossing", route: "rail_spur" });
   expect((await executeTool(page, "inspect_city_status")).availableOperations).toContain("manage_evacuation.execute_wave");
-  await executeTool(page, "manage_evacuation", { action: "execute_wave" });
+  const secondWave = executeTool(page, "manage_evacuation", { action: "execute_wave" });
+  await expect(page.locator(".world-operation strong")).toContainText(/ASSEMBLING|BOARDING|IN TRANSIT/);
+  await expect(page.locator("#objective-southbank")).not.toHaveClass(/complete/);
+  await secondWave;
   await expect(page.locator("#scene")).toHaveAttribute("data-visible-arrivals", "1800");
   await expect(page.locator("#objective-southbank")).toHaveClass(/complete/);
   await expect(page.locator("#objective-comms")).toHaveClass(/complete/);
