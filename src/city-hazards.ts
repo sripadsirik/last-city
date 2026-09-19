@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { seeded } from "./city-models";
+import { FLOOD_ZONES } from "./city-layout";
 
 /** Flooded streets keep the raised assembly plaza and northern hospital dry. */
 export class FloodDistrict {
@@ -23,7 +24,7 @@ export class FloodDistrict {
         }`,
       side: THREE.DoubleSide,
     });
-    for (const [x,z,width,depth] of [[2,82,238,11], [24,65,9,29], [68,65,9,29], [-64,64,9,30], [-87,58,30,18]]) {
+    for (const {x,z,width,depth} of FLOOD_ZONES) {
       const water = new THREE.Mesh(new THREE.PlaneGeometry(width,depth),this.material);
       water.rotation.x=-Math.PI/2; water.position.set(x,0.53,z); this.group.add(water);
     }
