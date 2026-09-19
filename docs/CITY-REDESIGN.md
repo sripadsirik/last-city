@@ -39,7 +39,7 @@ Four Southbank buildings additionally use authored Poly Haven wall, window and c
 
 ## Evacuation presentation
 
-A simulation rescue resource represents one convoy allocation. Each physical bus has 50 seats, so a standard 900-person wave renders 18 buses and 900 moving resident instances. Buses approach from the southern depot, pull into three loading bays, open their doors, board residents, travel along the selected corridor, and unload into the shelter's intake area. Completed passengers enter the building; a smaller receiving crowd remains outside.
+A simulation rescue resource represents one convoy allocation. Each physical bus has 50 seats, so a standard 900-person wave renders 18 buses and 900 moving resident instances. Buses stage on dry Waterfront Road, pull into three loading bays, open their doors, board residents, travel along the selected corridor, and unload into the shelter's intake area. Completed passengers enter the building; a smaller receiving crowd remains outside.
 
 The scene snapshots each wave's route. Replanning cannot change an in-flight convoy's path. Visual waves queue instead of replacing each other. The native tool and scripted benchmark wait for the scene's completion event before advancing the operation budget. Meridian's middle span falls after the first fleet has cleared the crossing; the remaining spans stay attached to their piers and road barriers close both approaches.
 
@@ -48,6 +48,8 @@ Distances and travel times are compressed for the demonstration. Standard mode r
 ## Rendering and verification
 
 Southbank flooding occupies the lower streets around the assembly plaza, with animated currents and floating debris. The plaza remains dry. Fire uses animated flame silhouettes, a wind-driven smoke column and flickering light; it subsides after the fire engine arrives. The hazard intensity follows the mission state.
+
+The bus staging area and both bridge approaches use dry Waterfront Road. The freight detour stays on this road instead of entering the flooded inland boulevard. Flood rendering and route tests share the same zone definitions; clearance checks include room for the vehicle body and lane offset.
 
 The bridge failure camera shot ends after a short hold, allowing the camera to follow reconnaissance and the next convoy. Its banner explicitly reports the residents still stranded. Human-facing evacuation and protection counters count visible arrivals, and Southbank is only marked secured after everyone reaches the shelter. The underlying action result is returned after the animation finishes.
 
