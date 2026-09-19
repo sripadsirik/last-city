@@ -11,7 +11,16 @@ export const BRIDGE_X = -20;
 export const RAIL_X = 108;
 export const FERRY_X = -108;
 export const PICKUP: Point = [2, 44];
-export const BUS_DEPOT: Point = [-64, 82];
+export const BUS_DEPOT: Point = [-64, 44];
+// Shared by the water renderer and route clearance checks. Waterfront Road
+// (z=44) and its loading bays remain dry; lower inland streets are inundated.
+export const FLOOD_ZONES = [
+  { x: 2, z: 82, width: 238, depth: 11 },
+  { x: 24, z: 68, width: 9, depth: 24 },
+  { x: 68, z: 68, width: 9, depth: 24 },
+  { x: -64, z: 68, width: 9, depth: 24 },
+  { x: -87, z: 65, width: 30, depth: 18 },
+] as const;
 export const RESPONSE_DEPOT: Point = [-64, -52];
 export const DISTRICTS: Record<DistrictId, { center: Point; stop: Point; entrance: Point; label: string; color: number }> = {
   northgrid: { center: [-83, -69], stop: [-83, -52], entrance: [-83, -57], label: "NORTH GRID", color: 0xb3d4bf },
@@ -43,15 +52,13 @@ export function evacuationPath(route: EvacuationRoute, shelter: DistrictId): Poi
   const end = DISTRICTS[shelter].stop;
   if (end[1] >= RIVER.south) return [PICKUP, [end[0], 44], end];
   const x = route === "meridian_bridge" ? BRIDGE_X : route === "rail_spur" ? RAIL_X : FERRY_X;
-  const points: Point[] = route === "rail_spur"
-    ? [PICKUP, [-20, 44], [-20, 82], [x, 82], [x, 44], [x, 30], [x, -2], [x, -16]]
-    : [PICKUP, [x, 44], [x, 30], [x, -2], [x, -16]];
+  const points: Point[] = [PICKUP, [x, 44], [x, 30], [x, -2], [x, -16]];
   if (end[1] !== -16) points.push([-64, -16], [-64, end[1]]);
   points.push(end);
   return deduplicate(points);
 }
 
-export function approachPath(): Point[] { return [BUS_DEPOT, [24, 82], [24, 44], PICKUP]; }
+export function approachPath(): Point[] { return [BUS_DEPOT, [24, 44], PICKUP]; }
 
 export function dispatchPath(district: DistrictId, bridgeOpen: boolean): Point[] {
   const end = DISTRICTS[district].stop;
