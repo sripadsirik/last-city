@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 interface NativeTool { name: string }
 interface NativeModelContext {
   getTools: () => Promise<NativeTool[]>;
-  executeTool: (tool: NativeTool, input: string) => Promise<unknown>;
+  executeTool: (tool: NativeTool, input: Record<string, unknown>) => Promise<unknown>;
 }
 interface ToolResult {
   ok?: boolean;
@@ -36,13 +36,13 @@ async function executeTool(page: Page, name: string, input: Record<string, unkno
     const context = (document as unknown as { modelContext: NativeModelContext }).modelContext;
     const tool = (await context.getTools()).find((candidate) => candidate.name === toolName);
     if (!tool) throw new Error(`Native WebMCP tool is not registered: ${toolName}`);
-    const result = await context.executeTool(tool, JSON.stringify(toolInput));
+    const result = await context.executeTool(tool, toolInput);
     return typeof result === "string" ? JSON.parse(result) as ToolResult : result as ToolResult;
   }, { toolName: name, toolInput: input });
 }
 
 test("adapts through a stable native WebMCP control plane and real human authorization", async ({ page }, testInfo) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   await page.goto("/");
   await expect(page.locator("#webmcp-status")).toContainText("Site tools live");
   const stableTools = ["deploy_recon_drone", "dispatch_response_unit", "export_after_action_report", "forecast_cascade", "inspect_city_status", "manage_evacuation", "manage_grid", "scan_district"];
@@ -86,9 +86,21 @@ test("adapts through a stable native WebMCP control plane and real human authori
   const pendingFirstWave = executeTool(page, "manage_evacuation", { action: "execute_wave" });
   await expect(page.locator(".world-operation")).toHaveClass(/active/);
   await expect(page.locator(".world-operation strong")).toContainText(/ASSEMBLING|BOARDING|IN TRANSIT/);
+  await expect(page.locator("#scene")).toHaveAttribute("data-fleet-size", "18");
+  await expect(page.locator("#scene")).toHaveAttribute("data-bridge-visual", "intact");
+  await expect(page.locator("#scene")).toHaveAttribute("data-visible-arrivals", "0");
   await page.screenshot({ path: testInfo.outputPath("evacuation-field-operation.png"), fullPage: true });
   const firstWave = await pendingFirstWave;
   expect(firstWave.ok).toBe(true);
+  await expect(page.locator("#scene")).toHaveAttribute("data-convoy", "idle");
+  await expect(page.locator("#scene")).toHaveAttribute("data-visible-arrivals", "900");
+  await expect(page.locator("#scene")).toHaveAttribute("data-bridge-visual", "collapsed");
+  await expect(page.locator("#scene")).toHaveAttribute("data-bridge-drop", "7.2");
+  await expect(page.locator("#evac-target-label")).toContainText("900 / 1,800");
+  await expect(page.locator("#objective-southbank")).not.toHaveClass(/complete/);
+  await expect(page.locator("#scene")).toHaveAttribute("data-collapse-cinematic", "released");
+  await expect(page.locator(".world-operation strong")).toContainText("SPAN DOWN");
+  await page.screenshot({ path: testInfo.outputPath("meridian-span-collapsed.png"), fullPage: true });
   expect((await executeTool(page, "inspect_city_status")).availableOperations).not.toContain("manage_evacuation.execute_wave");
   await expect.poll(() => toolNames(page)).toEqual(stableTools);
 
@@ -96,7 +108,11 @@ test("adapts through a stable native WebMCP control plane and real human authori
   expect((await executeTool(page, "inspect_city_status")).availableOperations).toContain("manage_evacuation.establish_crossing");
   await executeTool(page, "manage_evacuation", { action: "establish_crossing", route: "rail_spur" });
   expect((await executeTool(page, "inspect_city_status")).availableOperations).toContain("manage_evacuation.execute_wave");
-  await executeTool(page, "manage_evacuation", { action: "execute_wave" });
+  const secondWave = executeTool(page, "manage_evacuation", { action: "execute_wave" });
+  await expect(page.locator(".world-operation strong")).toContainText(/ASSEMBLING|BOARDING|IN TRANSIT/);
+  await expect(page.locator("#objective-southbank")).not.toHaveClass(/complete/);
+  await secondWave;
+  await expect(page.locator("#scene")).toHaveAttribute("data-visible-arrivals", "1800");
   await expect(page.locator("#objective-southbank")).toHaveClass(/complete/);
   await expect(page.locator("#objective-comms")).toHaveClass(/complete/);
   await expect(page.locator("#timer")).not.toHaveText("01:30");
