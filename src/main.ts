@@ -56,7 +56,7 @@ interface ModelContextTool {
 interface ModelContext {
   registerTool: (tool: ModelContextTool, options?: { signal?: AbortSignal }) => void | Promise<void>;
   getTools?: () => Promise<Array<{ name: string }>>;
-  executeTool?: (tool: { name: string }, input: string, options?: { signal?: AbortSignal }) => Promise<unknown>;
+  executeTool?: (tool: { name: string }, input: Record<string, unknown>, options?: { signal?: AbortSignal }) => Promise<unknown>;
 }
 
 declare global {
@@ -800,7 +800,7 @@ async function invokeMissionTool(name: string, input: Record<string, unknown> = 
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const tool = (await context.getTools()).find((candidate) => candidate.name === name);
       if (tool) {
-        const result = await context.executeTool(tool, JSON.stringify(input));
+        const result = await context.executeTool(tool, input);
         return decodeToolResult(result);
       }
       await delay(50);

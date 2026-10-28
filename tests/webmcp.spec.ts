@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 interface NativeTool { name: string }
 interface NativeModelContext {
   getTools: () => Promise<NativeTool[]>;
-  executeTool: (tool: NativeTool, input: string) => Promise<unknown>;
+  executeTool: (tool: NativeTool, input: Record<string, unknown>) => Promise<unknown>;
 }
 interface ToolResult {
   ok?: boolean;
@@ -36,7 +36,7 @@ async function executeTool(page: Page, name: string, input: Record<string, unkno
     const context = (document as unknown as { modelContext: NativeModelContext }).modelContext;
     const tool = (await context.getTools()).find((candidate) => candidate.name === toolName);
     if (!tool) throw new Error(`Native WebMCP tool is not registered: ${toolName}`);
-    const result = await context.executeTool(tool, JSON.stringify(toolInput));
+    const result = await context.executeTool(tool, toolInput);
     return typeof result === "string" ? JSON.parse(result) as ToolResult : result as ToolResult;
   }, { toolName: name, toolInput: input });
 }
